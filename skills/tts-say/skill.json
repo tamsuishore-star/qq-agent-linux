@@ -1,0 +1,129 @@
+{
+  "id": "tts-say",
+  "name": "语音回复",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "category": "media",
+  "description": "用户明确要求「发语音/念一下」时，用人设把要说的话合成成一条语音消息发出去，代替文字。关键词触发，平时零成本。TTS 用 Windows 自带中文语音（离线、免 key、不联网）。",
+  "author": "QQ Agent 用户",
+  "enabledByDefault": true,
+  "settings": {
+    "engine": "sapi",
+    "voice": "Microsoft Huihui Desktop",
+    "voiceOther": "",
+    "rate": 0,
+    "pitch": 0,
+    "volume": 100,
+    "maxChars": 300,
+    "maxSeconds": 60,
+    "cooldownSec": 60,
+    "delivery": "record",
+    "triggerKeywords": "发语音,说语音,语音回复,用语音,念一下,读出来,发个语音,语音说,发条语音,能语音吗",
+    "crossEnabled": false,
+    "crossKeywords": "发给,发到,转告,告诉,私聊,语音发给,发语音给,帮我转告,替我告诉",
+    "crossMaxPerRun": 2,
+    "crossCooldownSec": 300,
+    "dryRun": true
+  },
+  "configSchema": {
+    "engine": {
+      "type": "enum",
+      "values": ["sapi", "edge"],
+      "label": "TTS 引擎",
+      "description": "sapi = Windows 自带语音（离线、免 key、立刻可用，默认，音质偏机械）；edge = 微软神经音色（100+ 个、自然很多，需要先装 edge-tts，装不上会自动退回 sapi 并在会话卡片里说明原因）。"
+    },
+    "voice": {
+      "type": "enum",
+      "values": [
+        "Microsoft Huihui Desktop",
+        "zh-CN-XiaoxiaoNeural",
+        "zh-CN-XiaoyiNeural",
+        "zh-CN-XiaochenNeural",
+        "zh-CN-XiaohanNeural",
+        "zh-CN-YunxiNeural",
+        "zh-CN-YunjianNeural",
+        "zh-CN-YunyangNeural",
+        "zh-CN-YunxiaNeural",
+        "zh-CN-liaoning-XiaobeiNeural",
+        "zh-CN-shaanxi-XiaoniNeural",
+        "zh-HK-HiuMaanNeural",
+        "zh-HK-WanLungNeural",
+        "zh-TW-HsiaoChenNeural",
+        "zh-TW-YunJheNeural"
+      ],
+      "label": "音色",
+      "description": "sapi 引擎用第一个（Windows 自带中文女声）；edge 引擎用 zh-* 那些（微软神经音色）。不确定真名就问机器人「你能用什么声音说话」，它会调 list_voices 列清单给你。"
+    },
+    "voiceOther": {
+      "type": "string",
+      "label": "其它音色（可选）",
+      "description": "填了就优先用它盖过上面的下拉框 —— 用来选列表里没有的音色（比如 en-US-JennyNeural 英语女声、ja-JP-NanamiNeural 日语）。**只在 edge 引擎下生效**：引擎是 sapi 时这一项会被忽略。**一次只填一个真名**，别把几个名字粘在一起；名字不存在会被当场拦下并提示可用的。真名问机器人「你能用什么声音说话」（全部 322 个）。"
+    },
+    "rate": {
+      "type": "number",
+      "label": "语速",
+      "description": "-10 ~ 10，0 是正常。越大越快。时长估算会跟着它变。默认 0。"
+    },
+    "pitch": {
+      "type": "number",
+      "label": "音高（Hz）",
+      "description": "-50 ~ 50，0 是正常。调高更清脆/少女，调低更沉。**只有 edge 引擎支持**，sapi 会忽略。时长估算不受影响。默认 0。"
+    },
+    "volume": {
+      "type": "number",
+      "label": "音量",
+      "description": "0 ~ 100，默认 100。"
+    },
+    "maxChars": {
+      "type": "number",
+      "label": "单条字数上限",
+      "description": "超过就截断（优先在标点处断开），并告诉模型已经截断。默认 300。"
+    },
+    "maxSeconds": {
+      "type": "number",
+      "label": "单条时长上限（秒）",
+      "description": "按字数和语速估算，超过同样截断。默认 60。"
+    },
+    "cooldownSec": {
+      "type": "number",
+      "label": "冷却（秒）",
+      "description": "同一会话两次语音的最小间隔，防止连发刷屏。默认 60，填 0 = 不冷却。"
+    },
+    "delivery": {
+      "type": "enum",
+      "values": ["record", "file"],
+      "label": "投递方式",
+      "description": "record = 发成语音气泡（已实测可用）；file = 当普通文件发（气泡样式不行时的兜底）。默认 record。"
+    },
+    "triggerKeywords": {
+      "type": "string",
+      "label": "触发关键词",
+      "description": "本轮消息里出现这些词才切语音回复（逗号/顿号/空格分隔）。只匹配【未读信息】= 本轮新消息，历史里提过不算。留空 = 恢复默认词表。"
+    },
+    "dryRun": {
+      "type": "boolean",
+      "label": "演练模式",
+      "description": "开着时照常合成，但**不发送**（只在会话卡片里告诉你合成了多少字、几秒）。首次配置音色时保持开启，确认没问题再关。默认开启。"
+    },
+    "crossEnabled": {
+      "type": "boolean",
+      "label": "跨会话语音（转达给别人）",
+      "description": "开启后，有人说「用语音发给XX / 转告XX」时，可以把语音发到**别的**群或私聊。需要两个开关同时打开：本项 + 设置 → 工具与技能的「允许跨会话发送」。目标仍必须在白名单内。**默认关闭**，建议先演练模式验证再放开。"
+    },
+    "crossKeywords": {
+      "type": "string",
+      "label": "转达关键词",
+      "description": "本轮消息里出现这些词、**并且**同时出现语音关键词，才会走跨会话（宁可少发，也绝不把语音误发给别人）。留空 = 恢复默认词表。"
+    },
+    "crossMaxPerRun": {
+      "type": "number",
+      "label": "单轮跨会话上限",
+      "description": "一次会话里最多发几条跨会话语音，防止一轮连发骚扰别人。默认 2，填 0 = 本轮完全禁止跨会话。"
+    },
+    "crossCooldownSec": {
+      "type": "number",
+      "label": "跨会话冷却（秒）",
+      "description": "同一个目标两次语音之间的最小间隔（按目标各自计时，跨会话之间不共享配额）。默认 300 秒。"
+    }
+  }
+}
