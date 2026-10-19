@@ -70,6 +70,7 @@
   </div>
 
   <nav id="tabs">
+    <button class="tab" data-tab="overview">总览</button>
     <button class="tab active" data-tab="sessions">会话</button>
     <button class="tab" data-tab="chats">存档</button>
     <button class="tab" data-tab="memory">记忆</button>
@@ -91,6 +92,60 @@
   </nav>
 
   <main id="layout">
+    <!-- 总览：全部数据来自 /api/status、/api/overview、/api/skills，不做前端假数据 -->
+    <section id="view-overview" class="view">
+      <div class="ov-wrap">
+        <div class="ov-head">
+          <h2>运行总览</h2>
+          <span id="ov-updated" class="muted"></span>
+          <button id="ov-refresh" class="btn btn-small">刷新</button>
+        </div>
+        <div class="ov-grid">
+          <div class="ov-card">
+            <div class="ov-label">机器人服务</div>
+            <div id="ov-service" class="ov-value">-</div>
+            <div id="ov-uptime" class="ov-sub"></div>
+          </div>
+          <div class="ov-card">
+            <div class="ov-label">QQ 连接</div>
+            <div id="ov-qq" class="ov-value">-</div>
+            <div id="ov-qq-sub" class="ov-sub"></div>
+          </div>
+          <div class="ov-card">
+            <div class="ov-label">当前模型</div>
+            <div id="ov-model" class="ov-value">-</div>
+            <div id="ov-model-sub" class="ov-sub"></div>
+          </div>
+          <div class="ov-card">
+            <div class="ov-label">进程内存</div>
+            <div id="ov-mem" class="ov-value">-</div>
+            <div id="ov-mem-sub" class="ov-sub"></div>
+          </div>
+          <div class="ov-card">
+            <div class="ov-label">系统负载（1 / 5 / 15 分钟）</div>
+            <div id="ov-load" class="ov-value">-</div>
+            <div id="ov-load-sub" class="ov-sub"></div>
+          </div>
+          <div class="ov-card">
+            <div class="ov-label">技能 / 插件</div>
+            <div id="ov-skills" class="ov-value">-</div>
+            <div id="ov-skills-sub" class="ov-sub"></div>
+          </div>
+          <div class="ov-card">
+            <div class="ov-label">今日用量</div>
+            <div id="ov-usage" class="ov-value">-</div>
+            <div id="ov-usage-sub" class="ov-sub"></div>
+          </div>
+          <div class="ov-card">
+            <div class="ov-label">版本</div>
+            <div id="ov-version" class="ov-value">V1.1.0-dev</div>
+            <div class="ov-sub">TamsuiShore QQ Agent · 淡水海边</div>
+          </div>
+        </div>
+        <p class="ov-note">数据每 10 秒自动刷新；全部来自本机后端，不包含聊天内容与密钥。</p>
+      </div>
+    </section>
+
     <!-- 会话视图 -->
     <section id="view-sessions" class="view active">
       <aside id="session-list" class="list-pane">
@@ -172,6 +227,7 @@
   <script defer src="/app/09-community.js"></script>
   <script defer src="/app/10-feedback.js"></script>
   <script defer src="/app/12-concept2-ui.js"></script>
+  <script defer src="/app/13-overview.js"></script>
   <script defer src="/app/11-init.js"></script>
 
   <!-- 阿里云验证码 2.0（意见收集/金句上传共用）：容器常驻；AliyunCaptchaConfig 与

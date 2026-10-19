@@ -11,6 +11,7 @@
 // 路由 handler 通过闭包取用，避免在 app.js 里反复传参。
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { getConfig, updateConfig, deepMerge as deepMergeConfig, DATA_DIR } from './config.js';
@@ -132,6 +133,42 @@ export function createRoutes(deps) {
           paused: orchestrator.paused,
           pauseReason: orchestrator.pauseReason ?? null,
           dataDir: DATA_DIR
+        });
+      }
+    },
+    {
+      // 运行总览：仅返回进程与系统指标，供工作台“总览”页展示。
+      // 不返回配置、密钥、会话或任何用户内容。
+      method: 'GET', pattern: '/api/overview',
+      handler: async ({ res, json }) => {
+        const mem = process.memoryUsage();
+        const load = os.loadavg();
+        let skillsSummary = null;
+        try {
+          skillsSummary = skillManager.summary(skillRuntimeContext());
+        } catch { /* 技能尚未就绪时不影响总览 */ }
+        return json(res, 200, {
+          ok: true,
+          now: Date.now(),
+          uptimeSec: Math.round(process.uptime()),
+          node: process.version,
+          pid: process.pid,
+          model: getConfig()?.api?.model || '',
+          memory: {
+            rss: mem.rss,
+            heapUsed: mem.heapUsed,
+            heapTotal: mem.heapTotal,
+            external: mem.external
+          },
+          system: {
+            totalmem: os.totalmem(),
+            freemem: os.freemem(),
+            cpus: os.cpus()?.length || 0,
+            load1: load[0],
+            load5: load[1],
+            load15: load[2]
+          },
+          skills: skillsSummary
         });
       }
     },
