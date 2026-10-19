@@ -29,7 +29,14 @@ Linux QQ Agent 的产品版本从 **V1.0.0** 起算；上游 `package.json` 的 
   - 前端：`ui/app/13-overview.js`、`ui/index.html`、`ui/style.css`
   - 验证：独立 staging 实例启动后 `GET /api/overview` 返回 200；页面包含 `view-overview`；语法检查通过
   - 状态：**仅在 develop 分支，未部署生产**
-- **发现待修**：生产模块列表中有 3 个坏副本 `reply-meme` / `reply-meme_1` / `reply-meme_2`（缺少 manifest）
+- **模块卡片显式开关**：卡片新增“已启用 / 已禁用”按钮，点击切换（复用 `POST /api/skills/:id`，加载失败的条目禁用）
+  - 位置：`ui/app/06-settings-render.js`、`ui/style.css`
+- **修复 `reply-meme`**：把嵌套目录拍平为 `skills/reply-meme/`，删除重复副本 `_1`/`_2`
+  - 生产备份：`/root/qq-agent-reply-meme-backup-1792406576.tar.gz`
+  - 生产验证：模块总数 44、损坏 0、`reply-meme` loaded=true
+- **最小测试**：`test/manifest.test.mjs`（node:test，5 条用例），`npm test` 可执行
+  - 验证：`node --test test/` → 5 pass / 0 fail
+- **发现待修**：生产模块列表中有 3 个坏副本 `reply-meme` / `reply-meme_1` / `reply-meme_2`（缺少 manifest）——已在本轮修复
 - **ADR**：新增 `docs/adr/0001-v1.1.0-scope-and-naming.md`，记录范围、命名、外部服务与平台边界决策
 - **运维：Node 堆上限 640MB → 960MB**（缓解 OOM，见下）
   - 位置：`/etc/systemd/system/qq-agent.service.d/limits.conf`

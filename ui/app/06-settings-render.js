@@ -1386,6 +1386,8 @@ function renderModulePage(kind) {
       ? `<button class="mcard-gear" data-skill-id="${esc(s.id)}" title="设置（${allFields.length} 项）" aria-label="打开 ${esc(s.name)} 的设置">⚙</button>`
       : '';
     const uploadBtn = `<button class="mcard-upload" data-skill-id="${esc(s.id)}" data-skill-kind="${kind}" title="上传到市场" aria-label="上传 ${esc(s.name)} 到市场">⬆</button>`;
+    // 显式开关：点击后冒泡到整卡 click，复用原有切换逻辑；加载失败的条目禁用
+    const toggleBtn = `<button class="mcard-toggle ${s.enabled ? 'is-on' : ''}" data-skill-id="${esc(s.id)}" title="${s.enabled ? '当前已启用，点击禁用' : '当前已禁用，点击启用'}" aria-label="${s.enabled ? '禁用' : '启用'} ${esc(s.name)}" ${loadedOk ? '' : 'disabled'}>${s.enabled ? '已启用' : '已禁用'}</button>`;
     const haystack = [s.id, s.name, s.description, s.dir].filter(Boolean).join(' ').toLowerCase();
     return `
     <div class="mcard ${stateCls}" data-skill-id="${esc(s.id)}" data-search="${esc(haystack)}" role="button" tabindex="0" title="${esc(stateTitle)}">
@@ -1395,7 +1397,7 @@ function renderModulePage(kind) {
         <div class="mcard-desc">${esc(s.description || '（没有写介绍）')}</div>
         ${errLine ? `<div class="mcard-err">${esc(errLine)}</div>` : ''}
       </div>
-      <div class="mcard-acts">${uploadBtn}${settingsBtn}</div>
+      <div class="mcard-acts">${toggleBtn}${uploadBtn}${settingsBtn}</div>
     </div>`;
   };
 

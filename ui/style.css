@@ -1821,3 +1821,16 @@ details.collapsible.coll-shut > summary::after { transform: rotate(0deg); }
 .ov-sub { font-size: 12px; color: #9aa4b2; line-height: 1.6; word-break: break-all; }
 .ov-note { margin-top: 16px; font-size: 12px; color: #9aa4b2; }
 @media (max-width: 640px) { .ov-wrap { padding: 16px; } }
+
+/* V1.1.0：模块卡片显式启停按钮 */
+.mcard-toggle {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: #9aa4b2;
+  cursor: pointer;
+}
+.mcard-toggle.is-on { color: #7ee2a8; border-color: rgba(126, 226, 168, 0.4); }
+.mcard-toggle:disabled { opacity: 0.4; cursor: not-allowed; }

@@ -10,7 +10,8 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "server": "node src/server.js"
+    "server": "node src/server.js",
+    "test": "node --test test/"
   },
   "dependencies": {
     "js-yaml": "^5.4.1",
