@@ -59,6 +59,73 @@ async function reportToOrigin(ctx, text) {
   }
 }
 
+// ── 转发自己的空间动态到会话 ───────────────────────────────────────────────
+
+function selfUin(ctx) {
+  return String(ctx?.selfId ?? ctx?.onebot?.selfId ?? '');
+}
+
+function htmlToText(input) {
+  let s = String(input ?? '');
+  if (!s) return '';
+  s = s.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(div|p|li|tr|h[1-6])>/gi, '\n');
+  s = s.replace(/<img\b[^>]*>/gi, '[图片]');
+  s = s.replace(/<[^>]+>/g, '');
+  s = s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  return s.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+const pad2 = (n) => String(n).padStart(2, '0');
+function dayKey(tsSec) {
+  const d = new Date(tsSec * 1000);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+function fmtPostTime(tsSec) {
+  if (!tsSec) return '时间未知';
+  return new Date(tsSec * 1000).toLocaleString('zh-CN', { hour12: false });
+}
+function postLink(uin, tid) {
+  return uin && tid ? `https://user.qzone.qq.com/${uin}/mood/${tid}` : '';
+}
+
+/** 拉取自己最近的说说：优先用本技能发布历史（NapCat 不支持 get_qzone_msg_list）。 */
+async function fetchMyPosts(ctx, num = 50) {
+  const rows = state?.history ? state.history(num) : [];
+  return rows.map((p) => {
+    const realTid = p.tid ? String(p.tid) : '';
+    return {
+      tid: realTid || `local-${p.ts}`,
+      linkTid: realTid,
+      ts: Math.floor((Number(p.ts) || 0) / 1000),
+      text: String(p.content || '').slice(0, 800),
+      images: p.image ? [String(p.image)] : [],
+      isPrivate: String(p.visibility || '').includes('仅自己')
+    };
+  }).filter((p) => p.ts > 0);
+}
+
+/** 把一条动态（正文 + 配图 + 链接）发到当前会话。 */
+async function forwardPost(ctx, post) {
+  if (!ctx?.chatKey || !ctx?.sender?.sendTextBatch) throw new Error('当前没有可发送的会话');
+  const uin = selfUin(ctx);
+  const lines = [`📱 QQ空间动态 · ${fmtPostTime(post.ts)}`, '', post.text || '（这条只有图片或表情）'];
+  const linkTid = post.linkTid || (/^\d+$/.test(String(post.tid || '')) ? post.tid : '');
+  const link = postLink(uin, linkTid);
+  if (link) lines.push('', link);
+  await ctx.sender.sendTextBatch(ctx.chatKey, [lines.join('\n')]);
+  let images = 0;
+  for (const url of (post.images || []).slice(0, 6)) {
+    try {
+      await ctx.sender.sendImage(ctx.chatKey, { url });
+      images += 1;
+    } catch (error) {
+      log(`[qzone] 转发配图失败（${url}）：${error?.message ?? error}`);
+    }
+  }
+  return { images, link };
+}
+
 let cfg = () => ({});
 let log = () => {};
 let fetchImpl = null;
@@ -259,6 +326,8 @@ export function setup(api) {
           tid,
           source: args.source || '',
           mood: args.mood || '',
+          image: attached && image ? image : '',
+          visibility: vis.label,
           counted: !forced
         });
         state.markAttempt();
@@ -268,12 +337,22 @@ export function setup(api) {
         log(`[qzone] 已发说说 长度=${content.length} 配图=${attached ? '有' : '无'} tid=${tid ?? '未知'} `
           + `${forced ? '（用户强制，不计数）' : `本周第 ${weekNow} 条`}`);
 
-        // ⑥ 用户命令触发的发布：自动回执到当前群/私聊（不等模型复述）
+        // ⑥ 用户命令触发的发布：把刚发的动态自动转发到当前群/私聊
         let reported = false;
+        let forwardedImages = 0;
         if (forced) {
-          const receipt = `📮 已发到 QQ 空间（${vis.label}）\n\n${content}`
-            + (tid != null ? `\n\n说说 ID：${tid}` : '');
-          reported = await reportToOrigin(ctx, receipt);
+          try {
+            const fr = await forwardPost(ctx, {
+              tid: tid != null ? String(tid) : '',
+              ts: Math.floor(Date.now() / 1000),
+              text: content,
+              images: attached && image ? [image] : []
+            });
+            reported = true;
+            forwardedImages = fr.images;
+          } catch (e) {
+            log(`[qzone] 自动转发到会话失败：${e?.message ?? e}`);
+          }
         }
 
         return ok({
@@ -284,6 +363,7 @@ export function setup(api) {
           forced,
           counted: !forced,
           reportedToChat: reported,
+          forwardedImages,
           tid: tid != null ? String(tid) : null,
           weekCount: weekNow,
           maxPerWeek: r.maxPerWeek,
@@ -293,7 +373,7 @@ export function setup(api) {
           note: (imageNote ? imageNote + ' ' : '')
             + (forced ? '（这条是用户明确要求发的，没占本周配额，也不影响下次自动发的时间。）' : '')
             + (forced
-              ? (reported ? '已自动把说说内容回执到当前会话，你不用再复述全文。' : '回执发送失败（不影响空间发布）。')
+              ? (reported ? '已把说说正文、配图和链接自动转发到当前会话，你不用再复述全文。' : '自动转发失败（不影响空间发布），可以简短告知用户已发布。')
               : '')
             + '已经发出去了。回复里不要复述整段内容，也别播报"我发了条说说"这种机器话，正常接话或简单说一句就行。'
         });
@@ -303,7 +383,104 @@ export function setup(api) {
     }
   });
 
-  // ── 工具四：查状态 ──────────────────────────────────────────────────────
+  // ── 工具四：列出自己的空间动态（供 AI 判断转发哪一天） ────────────────
+  api.registerTool({
+    id: 'list_my_qzone_posts',
+    name: '查看我的空间动态',
+    description: '列出机器人自己最近发过的 QQ 空间动态（含日期、正文摘要、配图数、tid）。用户说“把你前天的说说转发到群里”“转发你最近那条动态”时，先用它确认是哪一条，再调 forward_qzone_post。只读，不会发布或修改。',
+    category: 'media',
+    icon: '🗂️',
+    parameters: {
+      type: 'object',
+      properties: {
+        days: { type: 'integer', description: '看最近几天，默认 7，最多 30' },
+        limit: { type: 'integer', description: '最多返回几条，默认 10，最多 20' }
+      }
+    },
+    async execute(ctx, args) {
+      try {
+        const days = Math.min(Math.max(Number(args.days) || 7, 1), 30);
+        const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 20);
+        const posts = await fetchMyPosts(ctx, 50);
+        const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
+        const list = posts
+          .filter((p) => p.ts >= cutoff)
+          .sort((a, b) => b.ts - a.ts)
+          .slice(0, limit)
+          .map((p) => ({
+            tid: p.tid,
+            日期: dayKey(p.ts),
+            时间: fmtPostTime(p.ts),
+            内容: p.text.slice(0, 200) || '（图片/表情）',
+            图片数: p.images.length,
+            可见性: p.isPrivate ? '仅自己' : '公开/好友',
+            链接: postLink(selfUin(ctx), p.tid)
+          }));
+        return ok({
+          动态: list,
+          note: '要转发某条，调 forward_qzone_post，传 tid；也可以传 daysAgo（0今天/1昨天/2前天）或 date（YYYY-MM-DD）。'
+        });
+      } catch (e) {
+        return err(`读取空间动态失败：${e?.message ?? e}`);
+      }
+    }
+  });
+
+  // ── 工具五：转发一条空间动态到当前会话 ───────────────────────────────
+  api.registerTool({
+    id: 'forward_qzone_post',
+    name: '转发空间动态',
+    description: '把机器人自己 QQ 空间里的一条动态（正文+配图+链接）转发到当前群/私聊。用户要求“转发你前天的说说”“把你最近的空间动态发到群里”时用。用户指定日期时优先传 date 或 daysAgo；不确定是哪条就先调 list_my_qzone_posts。只转发一条，除非用户明确要求多条。',
+    category: 'media',
+    icon: '📤',
+    parameters: {
+      type: 'object',
+      properties: {
+        tid: { type: 'string', description: '要转发的动态 id（list_my_qzone_posts 返回）' },
+        daysAgo: { type: 'integer', description: '0=今天，1=昨天，2=前天……按本地日期匹配；不传则取最近一条' },
+        date: { type: 'string', description: 'YYYY-MM-DD，指定某一天；优先于 daysAgo' },
+        note: { type: 'string', description: '可选：转发时附一句话' }
+      }
+    },
+    async execute(ctx, args) {
+      try {
+        const posts = await fetchMyPosts(ctx, 50);
+        if (!posts.length) return err('空间里还没有可转发的动态。');
+        let target = null;
+        const tid = String(args.tid || '').trim();
+        if (tid) target = posts.find((p) => p.tid === tid) || null;
+        if (!target && args.date) {
+          const key = String(args.date).trim();
+          target = posts.find((p) => dayKey(p.ts) === key) || null;
+        }
+        if (!target && args.daysAgo != null) {
+          const d = new Date();
+          d.setDate(d.getDate() - Number(args.daysAgo));
+          const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+          target = posts.find((p) => dayKey(p.ts) === key) || null;
+        }
+        if (!target) target = posts.sort((a, b) => b.ts - a.ts)[0];
+        if (!target) return err('没找到对应的动态。');
+        const r = await forwardPost(ctx, target);
+        if (args.note) {
+          try { await ctx.sender.sendTextBatch(ctx.chatKey, [String(args.note)]); } catch { /* 附言失败不影响转发 */ }
+        }
+        return ok({
+          forwarded: true,
+          tid: target.tid,
+          日期: dayKey(target.ts),
+          时间: fmtPostTime(target.ts),
+          配图: r.images,
+          链接: r.link,
+          note: '已转发到当前会话，不要重复粘贴正文。'
+        });
+      } catch (e) {
+        return err(`转发失败：${e?.message ?? e}`);
+      }
+    }
+  });
+
+  // ── 工具六：查状态 ──────────────────────────────────────────────────────
   api.registerTool({
     id: 'qzone_status',
     name: '查看空间状态',

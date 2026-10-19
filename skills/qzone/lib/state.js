@@ -127,7 +127,7 @@ export class QzoneState {
    * 记一次成功发布。
    * @param {boolean} counted false = 用户强制要求发的测试帖，不占周配额也不触发冷却
    */
-  recordPost({ content, title = '', tid = null, source = '', mood = '', counted = true }) {
+  recordPost({ content, title = '', tid = null, source = '', mood = '', counted = true, image = '', visibility = '' }) {
     this.data.posts.push({
       ts: Date.now(),
       content: String(content || '').slice(0, 500),
@@ -135,6 +135,8 @@ export class QzoneState {
       tid: tid != null ? String(tid) : null,
       source: String(source || ''),
       mood: String(mood || ''),
+      image: String(image || ''),
+      visibility: String(visibility || ''),
       counted: counted !== false
     });
     // 只留最近 200 条，避免文件无限增长
