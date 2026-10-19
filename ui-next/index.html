@@ -105,6 +105,7 @@
       <div class="toolbar">
         <select class="input select" id="session-status"><option value="all">全部状态</option><option value="running">running</option><option value="done">done</option><option value="error">error</option></select>
         <button class="btn ghost" id="session-refresh" type="button">刷新</button>
+        <button class="btn ghost" id="session-clear" type="button">清空已结束</button>
         <span class="count" id="session-count"></span>
       </div>
       <div class="card"><div id="session-list" class="list"></div></div>
@@ -118,7 +119,8 @@
 
     <section class="page hidden" id="page-memory"><div class="page-inner">
       <div class="page-head"><h1>记忆</h1><p>群友印象与长期记忆</p></div>
-      <div class="toolbar"><button class="btn ghost" id="memory-refresh" type="button">刷新</button><span class="count" id="memory-count"></span></div>
+      <div class="toolbar"><button class="btn ghost" id="memory-refresh" type="button">刷新</button>
+        <button class="btn ghost" id="memory-consolidate" type="button">立即整理</button><span class="count" id="memory-count"></span></div>
       <div class="card"><div id="memory-list" class="list"></div></div>
     </div></section>
 
@@ -172,6 +174,7 @@
         <select class="input select" id="log-level"><option value="all">全部级别</option><option value="error">error</option><option value="warn">warn</option><option value="info">info</option><option value="debug">debug</option></select>
         <input class="input" id="log-search" type="search" placeholder="搜索消息 / 模块" />
         <label class="check"><input type="checkbox" id="log-auto" /> 自动刷新（5s）</label>
+        <select class="input select" id="log-file-level" title="落盘级别"><option value="">落盘级别</option><option value="debug">debug</option><option value="info">info</option><option value="warn">warn</option><option value="error">error</option></select>
         <button class="btn ghost" id="log-refresh" type="button">刷新</button>
         <span class="count" id="log-count"></span>
       </div>
@@ -202,4 +205,5 @@
 <aside class="sheet hidden" id="sheet"><div class="sheet-head"><h3 id="sheet-title">详情</h3><button class="btn ghost" id="sheet-close" type="button">关闭</button></div><div class="sheet-body" id="sheet-body"></div></aside>
 </body>
 </html>
+
 

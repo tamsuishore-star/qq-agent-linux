@@ -4,6 +4,7 @@
   'use strict';
   const { api, toast, esc } = window.TS;
   const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
   const splitList = (v) => String(v || '').split(/[\n,，、]+/).map((x) => x.trim()).filter(Boolean);
   const isMasked = (v) => typeof v === 'string' && v.includes('******');
@@ -153,6 +154,31 @@
       const updateBody = `<div class="field"><label>当前版本</label><div class="mod-desc">${esc(ver?.version || '-')}</div></div>
         <button class="btn ghost" id="s_check_update" type="button">检查更新</button><div id="s_update_hint" class="hint"></div>`;
 
+      const providerRows = providers.length ? providers.map((p) => `<div class="row">
+        <span class="dot ${p.hasKey ? 'on' : 'warn'}"></span>
+        <div class="grow"><div class="title">${esc(p.displayName || p.id)}</div><div class="sub">${esc(p.baseURL || '')} · ${p.hasKey ? '已配置 Key' : '未配置 Key'}</div></div>
+        <button class="btn sm ghost" data-ptest="${esc(p.id)}">测试</button>
+        <button class="btn sm danger" data-pdel="${esc(p.id)}">删除</button></div>`).join('') : '<div class="empty">暂无供应商</div>';
+      const providersBody = `<div class="list" style="margin-bottom:10px">${providerRows}</div>
+        ${F('新增供应商 BaseURL', input('s_new_base', '', 'text', 'placeholder="https://api.example.com/v1"'))}
+        ${F('API Key', input('s_new_key', '', 'password', 'autocomplete="off"'))}
+        ${F('模型（逗号分隔）', input('s_new_models', '', 'text', 'placeholder="deepseek-chat,deepseek-reasoner"'))}
+        <button class="btn" id="s_add_provider" type="button">添加供应商</button>
+        <hr style="border:0;border-top:1px solid var(--stroke);margin:12px 0" />
+        ${F('为已有供应商设置 Key', `<div style="display:flex;gap:6px"><select id="s_key_pid" style="flex:1">${providers.map((p) => `<option value="${esc(p.id)}">${esc(p.displayName || p.id)}</option>`).join('')}</select><input id="s_set_key" type="password" placeholder="新 Key" style="flex:1" /></div>`)}
+        <button class="btn" id="s_save_key" type="button">保存 Key</button>`;
+
+      const marketBody = `<div class="field"><label>安装口令</label><div style="display:flex;gap:6px">
+          <input class="input" id="s_market_code" placeholder="例如 AB12CD" style="flex:1" />
+          <button class="btn primary" id="s_market_install" type="button">安装</button></div>
+          <span class="hint">先校验再安装；安装后自动重扫并出现在能力页。</span></div>
+        <div class="field"><label>市场账号</label><div class="mod-desc" id="s_market_accounts">读取中…</div></div>
+        <div class="field"><label>登录 / 注册</label><div style="display:flex;gap:6px">
+          <input class="input" id="s_market_user" placeholder="用户名/邮箱" style="flex:1" />
+          <input class="input" id="s_market_pass" type="password" placeholder="密码" style="flex:1" />
+          <button class="btn" id="s_market_login" type="button">登录</button></div></div>
+        <a class="btn ghost" href="/" target="_blank" rel="noopener">发布/管理在经典控制台</a>`;
+
       $('#settings-root').innerHTML = [
         card('model', '模型 API', '供应商、模型、密钥、视觉模型与备选模型。', modelBody),
         card('cost', '成本核算', '本地单价用于估算；与官方价格表二选一。', costBody),
@@ -162,6 +188,8 @@
         card('whitelist', '聊天白名单', '群号/QQ 每行一个；空名单策略。', whitelistBody),
         card('chat', '聊天设置', '节奏、并发、发送限流、静默与主动发言。', chatBody),
         card('onebot', 'OneBot / NapCat', 'QQ 接入地址与令牌。', onebotBody),
+        card('providers', '模型管理', '供应商目录、Key 与连通性。', providersBody, { save: false }),
+        card('market', '扩展市场（外部）', '口令安装与市场账号。', marketBody, { save: false }),
         card('ui', '界面', '主题、视觉结果、刷新间隔。', uiBody),
         card('desktop', '桌面端', 'Windows 专属项在 Linux 下的映射。', desktopBody),
         card('tools', '工具与技能', '工具总开关与分类。', toolsBody, { extra: '<a class="btn ghost" href="#" data-goto="modules">能力页</a>' }),
@@ -170,6 +198,54 @@
       ].join('');
 
       $('#settings-root').onclick = onClick;
+      // 模型管理
+      const byId = (x) => document.getElementById(x);
+      byId('s_add_provider')?.addEventListener('click', async () => {
+        try {
+          await api('/api/providers', { method: 'POST', body: JSON.stringify({
+            baseUrl: byId('s_new_base').value.trim(), apiKey: byId('s_new_key').value.trim(),
+            models: splitList(byId('s_new_models').value)
+          }) });
+          toast('供应商已添加'); render();
+        } catch (e) { toast(`添加失败：${e.message}`, 'err'); }
+      });
+      $$('[data-ptest]').forEach((b) => b.addEventListener('click', async () => {
+        try { const r = await api('/api/providers/test-one', { method: 'POST', body: JSON.stringify({ providerId: b.dataset.ptest }) }); toast(r.ok === false ? (r.error || '测试失败') : '连通性正常', r.ok === false ? 'err' : 'ok'); }
+        catch (e) { toast(`测试失败：${e.message}`, 'err'); }
+      }));
+      $$('[data-pdel]').forEach((b) => b.addEventListener('click', async () => {
+        if (!await window.TS.confirmAction({ title: '删除供应商', text: '将同时删除其 Key 与模型目录，确认？' })) return;
+        try { await api('/api/providers', { method: 'DELETE', body: JSON.stringify({ providerId: b.dataset.pdel }) }); toast('已删除'); render(); }
+        catch (e) { toast(`删除失败：${e.message}`, 'err'); }
+      }));
+      byId('s_save_key')?.addEventListener('click', async () => {
+        const key = byId('s_set_key').value.trim();
+        if (!key) { toast('请输入 Key', 'err'); return; }
+        try { await api('/api/providers/set-key', { method: 'POST', body: JSON.stringify({ providerId: byId('s_key_pid').value, apiKey: key }) }); toast('Key 已保存'); render(); }
+        catch (e) { toast(`保存失败：${e.message}`, 'err'); }
+      });
+      // 市场
+      api('/api/market/accounts').then((d) => {
+        const list = d.accounts || [];
+        byId('s_market_accounts').textContent = list.length ? list.map((a) => a.username || a.loginId).join('、') : '未登录';
+      }).catch(() => { byId('s_market_accounts').textContent = '读取失败'; });
+      byId('s_market_install')?.addEventListener('click', async () => {
+        const code = byId('s_market_code').value.trim().toUpperCase();
+        if (!code) { toast('请输入口令', 'err'); return; }
+        try {
+          const v = await api('/api/market/verify', { method: 'POST', body: JSON.stringify({ code }) });
+          const r = await api('/api/market/install', { method: 'POST', body: JSON.stringify({ code, entry: v.entry }) });
+          toast(`已安装：${r.id}`); byId('s_market_code').value = '';
+        } catch (e) { toast(`安装失败：${e.message}`, 'err'); }
+      });
+      byId('s_market_login')?.addEventListener('click', async () => {
+        try {
+          await api('/api/market/login', { method: 'POST', body: JSON.stringify({
+            loginId: byId('s_market_user').value.trim(), password: byId('s_market_pass').value, mode: 'login'
+          }) });
+          toast('登录成功'); render();
+        } catch (e) { toast(`登录失败：${e.message}`, 'err'); }
+      });
       const cu = $('#s_check_update');
       if (cu) cu.addEventListener('click', async () => {
         const hint = $('#s_update_hint'); hint.textContent = '检查中…';

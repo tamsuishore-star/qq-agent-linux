@@ -418,6 +418,11 @@
     $('#log-level').addEventListener('change', (e) => { state.logLevel = e.target.value; renderLogs(); });
     $('#log-search').addEventListener('input', (e) => { state.logQ = e.target.value; renderLogs(); });
     $('#log-refresh').addEventListener('click', loadLogs);
+    $('#log-file-level')?.addEventListener('change', async (e) => {
+      const level = e.target.value; if (!level) return;
+      try { await api('/api/logs/level', { method: 'POST', body: JSON.stringify({ level }) }); toast(`落盘级别已设为 ${level}`); }
+      catch (err) { toast(`设置失败：${err.message}`, 'err'); }
+    });
     $('#log-list').addEventListener('click', (e) => {
       const btn = e.target.closest('.log-more'); if (!btn) return;
       const line = btn.closest('.log-line'); line.classList.toggle('open'); line.querySelector('.log-raw').classList.toggle('hidden');
