@@ -5,10 +5,11 @@
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  const state = { page: 'overview', modules: [], builtin: new Set(), installed: {}, logs: [], paused: false, overview: null, status: null, usage: null, recentSessions: [], kind: 'all', q: '', filter: 'all', logLevel: 'all', logQ: '' };
+  const state = { page: 'overview', modules: [], builtin: new Set(), installed: {}, logs: [], paused: false, overview: null, status: null, usage: null, recentSessions: [], kind: 'all', q: '', filter: 'all', logLevel: 'all', logQ: '', usageRange: '7', serverTime: null };
 
   async function api(path, options = {}) {
     const res = await fetch(path, { headers: { 'content-type': 'application/json' }, ...options });
+    state.serverTime = res.headers.get('date') || state.serverTime;
     const text = await res.text();
     let data = {};
     try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
@@ -134,16 +135,18 @@
     $('#conn-dot').className = `dot ${ok ? 'on' : 'err'}`;
     $('#conn-text').textContent = ok ? 'OneBot 已连接' : 'OneBot 未连接';
     $('#model-chip').textContent = `模型 ${overview?.model || '-'}`;
-    $('#uptime-chip').textContent = `已运行 ${fmtDuration(overview?.uptimeSec)}`;
+    $('#uptime-chip').textContent = `已运行 ${fmtDuration(overview?.uptimeSec)}${state.serverTime ? ` · 更新 ${new Date(state.serverTime).toLocaleTimeString('zh-CN', { hour12: false })}` : ''}`;
 
     const enabled = modules.filter((s) => s.enabled).length;
     const broken = modules.filter((s) => !s.loaded).length;
     const us = status?.usage || {};
+    const cost = Number(status?.cost?.total ?? status?.cost?.cost ?? status?.cost ?? 0) || 0;
+    const cache = Number(status?.cacheHitRate ?? 0);
     const metrics = [
-      { label: '模块', value: `${enabled}`, small: `/ ${modules.length}`, sub: broken ? `${broken} 个异常` : '全部加载正常' },
+      { label: '今日调用', value: fmtNum(us.runs || 0), small: '次', sub: broken ? `${broken} 个模块异常` : `${enabled}/${modules.length} 模块启用` },
       { label: '今日 Token', value: fmtNum(us.totalTokens || 0), small: '', sub: `输入 ${fmtNum(us.promptTokens || 0)} · 输出 ${fmtNum(us.completionTokens || 0)}` },
-      { label: '进程内存', value: overview ? fmtBytes(overview.memory.rss) : '-', small: '', sub: overview ? `堆 ${fmtBytes(overview.memory.heapUsed)}` : '' },
-      { label: '系统可用', value: overview ? fmtBytes(overview.system.freemem) : '-', small: '', sub: overview ? `共 ${fmtBytes(overview.system.totalmem)} · ${overview.system.cpus} 核` : '' }
+      { label: '今日成本', value: `¥${cost.toFixed(2)}`, small: '', sub: `缓存命中 ${(cache * 100).toFixed(1)}% · 估算值` },
+      { label: '今日搜索', value: fmtNum(status?.webSearchCount || 0), small: '次', sub: `缓存 Token ${fmtNum(us.cachedTokens || 0)}` }
     ];
     $('#metric-grid').innerHTML = metrics.map((m) => `<div class="card metric">
       <div class="label">${esc(m.label)}</div>
@@ -155,7 +158,8 @@
     $('#chart-total').textContent = usage ? `合计 ${fmtNum(usage.totals?.totalTokens || 0)}` : '';
 
     const active = modules.filter((s) => s.active).length;
-    $('#ring-wrap').innerHTML = ring(modules.length ? (active / modules.length) * 100 : 0, '模块生效率', `${active}/${modules.length}`);
+    $('#ring-wrap').innerHTML = ring(modules.length ? (active / modules.length) * 100 : 0, '模块生效率', `${active}/${modules.length}`)
+      + `<p class="hint" style="flex-basis:100%">进程 ${overview ? fmtBytes(overview.memory.rss) : '-'} · 系统可用 ${overview ? fmtBytes(overview.system.freemem) : '-'}<br>负载 ${overview ? `${overview.system.load1.toFixed(2)} / ${overview.system.load5.toFixed(2)} / ${overview.system.load15.toFixed(2)}` : '-'}</p>`;
 
     const issues = modules.filter((s) => !s.loaded || (s.enabled && !s.active));
     $('#health-list').innerHTML = issues.length
@@ -225,6 +229,7 @@
         <td>${esc(KIND[s.kind] || s.kind || '技能')}</td><td>v${esc(s.version || '-')}</td><td>${esc(sourceOf(s))}</td>
         <td><span class="pill ${st.cls}">${esc(st.text)}</span></td>
         <td><div class="cell-actions">
+          ${s.hasSettings ? '<button class="btn sm ghost" data-act="settings">设置</button>' : ''}
           <button class="btn sm ghost" data-act="toggle" ${s.loaded ? '' : 'disabled'}>${s.enabled ? '禁用' : '启用'}</button>
           ${removable ? '<button class="btn sm danger" data-act="uninstall">卸载</button>' : '<span class="pill off">内置</span>'}
         </div></td></tr>`;
@@ -247,6 +252,48 @@
     if (!ok) return;
     try { await api(`/api/modules/${kind}/${encodeURIComponent(id)}?mode=uninstall`, { method: 'DELETE' }); toast(`已卸载：${id}`); await loadModules(); }
     catch (e) { toast(`卸载失败：${e.message}`, 'err'); }
+  }
+
+  // 技能/插件设置弹窗：由 manifest.configSchema 动态生成（与原版同一份 schema）
+  function openSkillSettings(s) {
+    const schema = s.configSchema || {};
+    const values = s.settings || {};
+    const keys = Object.keys(schema);
+    if (!keys.length) { toast('该模块没有可配置项', 'err'); return; }
+    const fields = keys.map((k) => {
+      const def = schema[k] || {};
+      const v = values[k];
+      let ctrl;
+      if (def.type === 'boolean') ctrl = `<input type="checkbox" data-k="${esc(k)}" ${v ? 'checked' : ''} />`;
+      else if (Array.isArray(def.options)) {
+        ctrl = `<select data-k="${esc(k)}">${def.options.map((o) => {
+          const ov = typeof o === 'string' ? o : (o.value ?? o.id);
+          const ot = typeof o === 'string' ? o : (o.label ?? o.name ?? ov);
+          return `<option value="${esc(ov)}" ${String(ov) === String(v) ? 'selected' : ''}>${esc(ot)}</option>`;
+        }).join('')}</select>`;
+      } else if (def.type === 'number') ctrl = `<input type="number" data-k="${esc(k)}" value="${esc(v ?? '')}" />`;
+      else if (def.type === 'textarea' || def.multiline) ctrl = `<textarea data-k="${esc(k)}" rows="4">${esc(v ?? '')}</textarea>`;
+      else ctrl = `<input type="${def.secret ? 'password' : 'text'}" data-k="${esc(k)}" value="${def.secret ? '' : esc(v ?? '')}" placeholder="${def.secret ? '已配置，留空不修改' : ''}" />`;
+      return `<div class="field"><label>${esc(def.label || k)}</label>${ctrl}${def.description ? `<span class="hint">${esc(def.description)}</span>` : ''}</div>`;
+    }).join('');
+    openSheet(`设置：${s.name || s.id}`, `<div id="skill-form">${fields}
+      <div class="setting-actions"><button class="btn primary" id="skill-save" type="button">保存</button><span class="status" id="skill-status"></span></div>
+      <p class="hint">保存后立即写入模块配置，下一轮对话生效。</p></div>`);
+    $('#skill-save').addEventListener('click', async () => {
+      const settings = {};
+      $$('#skill-form [data-k]').forEach((el) => {
+        const k = el.dataset.k;
+        if (el.type === 'checkbox') settings[k] = el.checked;
+        else if (el.type === 'number') settings[k] = Number(el.value);
+        else if (el.type === 'password') { if (el.value.trim()) settings[k] = el.value.trim(); }
+        else settings[k] = el.value;
+      });
+      try {
+        await api(`/api/skills/${encodeURIComponent(s.id)}`, { method: 'POST', body: JSON.stringify({ settings }) });
+        $('#skill-status').textContent = '已保存'; $('#skill-status').style.color = 'var(--ok)';
+        toast(`已保存：${s.id}`); closeSheet(); await loadModules();
+      } catch (e) { $('#skill-status').textContent = `保存失败：${e.message}`; $('#skill-status').style.color = 'var(--danger)'; }
+    });
   }
 
   const logFields = (l) => ({ level: String(l.level || 'info').toLowerCase(), module: l.module || l.skill || '', text: String(l.text ?? l.msg ?? l.message ?? (typeof l === 'string' ? l : '')), time: l.ts ?? l.time ?? l.timestamp });
@@ -273,24 +320,40 @@
     catch (e) { toast(`日志加载失败：${e.message}`, 'err'); }
   }
 
-  async function loadUsage() {
+  async function loadUsage(range = state.usageRange) {
     try {
-      const d = await api('/api/usage/stats?range=7'); state.usage = d;
+      const d = await api(`/api/usage/stats?range=${encodeURIComponent(range)}`);
+      state.usage = d; state.usageRange = String(range);
       const t = d.totals || {};
+      const cache = Number(t.cacheHitRate || 0);
       const cards = [
+        { label: '估算成本', value: `¥${Number(t.cost || 0).toFixed(2)}`, sub: `${d.rangeLabel || ''} · 本地价格表估算` },
+        { label: '调用次数', value: fmtNum(t.runs || 0), sub: `精确调用 ${fmtNum(t.exactCalls || 0)}` },
         { label: '总 Token', value: fmtNum(t.totalTokens || 0), sub: `输入 ${fmtNum(t.promptTokens || 0)} · 输出 ${fmtNum(t.completionTokens || 0)}` },
-        { label: '花费', value: `¥${Number(t.cost || 0).toFixed(2)}`, sub: `缓存命中 ${(Number(t.cacheHitRate || 0) * 100).toFixed(0)}%` },
-        { label: '运行次数', value: fmtNum(t.runs || 0), sub: `精确调用 ${fmtNum(t.exactCalls || 0)}` },
-        { label: '联网搜索', value: fmtNum(d.searchCount || 0), sub: '近 7 天' }
+        { label: '缓存命中', value: `${(cache * 100).toFixed(1)}%`, sub: `缓存 Token ${fmtNum(t.cachedTokens || 0)}` },
+        { label: '联网搜索', value: fmtNum(d.searchCount || 0), sub: '调用 web_search 次数' }
       ];
-      $('#usage-cards').innerHTML = cards.map((c) => `<div class="card metric"><div class="label">${esc(c.label)}</div><div class="value">${esc(c.value)}</div><div class="sub">${esc(c.sub)}</div></div>`).join('');
-      $('#usage-range').textContent = d.rangeLabel || '';
-      const days = (d.days || []).slice(-7).map((x) => ({ label: String(x.day).slice(5), value: x.totalTokens || 0 }));
-      $('#usage-chart').innerHTML = barChart(days, { unit: ' tokens' });
+      $('#usage-cards').innerHTML = cards.map((c) => `<div class="card metric"><div class="label">${esc(c.label)}</div><div class="value">${esc(c.value)}</div><div class="sub" title="${esc(c.sub)}">${esc(c.sub)}</div></div>`).join('');
+      $('#usage-range-label').textContent = d.rangeLabel || '';
+      $('#usage-updated').textContent = state.serverTime ? `数据时间 ${new Date(state.serverTime).toLocaleTimeString('zh-CN', { hour12: false })}` : '';
+
+      const isHours = d.mode === 'hours' || String(range) === 'today';
+      const series = isHours
+        ? (d.hours || []).map((x) => ({ label: `${x.hour}时`, value: x.totalTokens || 0 }))
+        : (d.days || []).map((x) => ({ label: String(x.day).slice(5), value: x.totalTokens || 0 }));
+      $('#usage-chart').innerHTML = barChart(series, { unit: ' tokens' });
+
       const tools = Object.entries(d.toolCounts || {}).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, v]) => ({ label: k, value: v }));
       $('#tool-bars').innerHTML = barRows(tools, { unit: ' 次' });
       const chats = (d.chats || []).slice(0, 8).map((c) => ({ label: c.key, value: c.totalTokens || 0 }));
       $('#chat-usage').innerHTML = barRows(chats, { unit: ' tk' });
+
+      const models = d.models || [];
+      $('#model-usage').innerHTML = models.length
+        ? models.map((m) => `<tr><td class="name-cell"><div class="mod-title">${esc(m.key)}</div></td>
+            <td>¥${Number(m.cost || 0).toFixed(2)}</td><td>${fmtNum(m.totalTokens || 0)}</td>
+            <td>${(Number(m.cacheHitRate || 0) * 100).toFixed(1)}%</td><td>${fmtNum(m.runs || 0)}</td></tr>`).join('')
+        : '<tr><td colspan="5" class="empty">暂无模型数据</td></tr>';
     } catch (e) { toast(`用量加载失败：${e.message}`, 'err'); }
   }
 
@@ -341,9 +404,17 @@
     $('#module-rows').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-act]'); if (!btn) return;
       const tr = btn.closest('tr');
-      if (btn.dataset.act === 'toggle') { const m = state.modules.find((s) => s.id === tr.dataset.id); toggleModule(tr.dataset.id, !m?.enabled); }
+      const mod = state.modules.find((s) => s.id === tr.dataset.id);
+      if (btn.dataset.act === 'toggle') toggleModule(tr.dataset.id, !mod?.enabled);
+      else if (btn.dataset.act === 'settings') openSkillSettings(mod);
       else uninstall(tr.dataset.id, tr.dataset.kind);
     });
+    $('#usage-seg')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-range]'); if (!btn) return;
+      $$('#usage-seg .seg-btn').forEach((b) => b.classList.toggle('active', b === btn));
+      loadUsage(btn.dataset.range);
+    });
+    $('#usage-refresh')?.addEventListener('click', () => loadUsage());
     $('#log-level').addEventListener('change', (e) => { state.logLevel = e.target.value; renderLogs(); });
     $('#log-search').addEventListener('input', (e) => { state.logQ = e.target.value; renderLogs(); });
     $('#log-refresh').addEventListener('click', loadLogs);

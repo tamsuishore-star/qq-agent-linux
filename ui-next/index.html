@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
@@ -124,12 +124,23 @@
 
     <section class="page hidden" id="page-usage"><div class="page-inner">
       <div class="page-head"><h1>用量</h1><p>Token、花费与工具调用</p></div>
+      <div class="toolbar">
+        <div class="seg" id="usage-seg">
+          <button class="seg-btn" data-range="today" type="button">今日</button>
+          <button class="seg-btn active" data-range="7" type="button">近 7 天</button>
+          <button class="seg-btn" data-range="30" type="button">近 30 天</button>
+          <button class="seg-btn" data-range="all" type="button">全部</button>
+        </div>
+        <button class="btn ghost" id="usage-refresh" type="button">刷新</button>
+        <span class="count" id="usage-updated"></span>
+      </div>
       <div class="grid cols-4" id="usage-cards"></div>
       <div class="grid cols-2" style="margin-top:14px">
-        <div class="card"><div class="card-head"><h2>近 7 天 Token</h2><span class="muted" id="usage-range"></span></div><div id="usage-chart"></div></div>
+        <div class="card"><div class="card-head"><h2>近 7 天 Token</h2><span class="muted" id="usage-range-label"></span></div><div id="usage-chart"></div></div>
         <div class="card"><div class="card-head"><h2>工具调用 Top</h2></div><div id="tool-bars" class="bars"></div></div>
       </div>
       <div class="card" style="margin-top:14px"><div class="card-head"><h2>按会话</h2></div><div id="chat-usage" class="bars"></div></div>
+      <div class="card" style="margin-top:14px"><div class="card-head"><h2>按模型</h2><span class="muted">成本 / Token / 缓存</span></div><div class="table-wrap"><table class="table"><colgroup><col style="width:34%"/><col style="width:16%"/><col style="width:18%"/><col style="width:16%"/><col style="width:16%"/></colgroup><thead><tr><th>模型</th><th>成本</th><th>Token</th><th>缓存命中</th><th>调用</th></tr></thead><tbody id="model-usage"></tbody></table></div></div>
     </div></section>
 
     <section class="page hidden" id="page-modules"><div class="page-inner">
@@ -191,3 +202,4 @@
 <aside class="sheet hidden" id="sheet"><div class="sheet-head"><h3 id="sheet-title">详情</h3><button class="btn ghost" id="sheet-close" type="button">关闭</button></div><div class="sheet-body" id="sheet-body"></div></aside>
 </body>
 </html>
+
