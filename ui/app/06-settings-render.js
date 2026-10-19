@@ -1386,6 +1386,7 @@ function renderModulePage(kind) {
       ? `<button class="mcard-gear" data-skill-id="${esc(s.id)}" title="设置（${allFields.length} 项）" aria-label="打开 ${esc(s.name)} 的设置">⚙</button>`
       : '';
     const uploadBtn = `<button class="mcard-upload" data-skill-id="${esc(s.id)}" data-skill-kind="${kind}" title="上传到市场" aria-label="上传 ${esc(s.name)} 到市场">⬆</button>`;
+    const delBtn = `<button class="mcard-del" data-skill-id="${esc(s.id)}" data-skill-kind="${kind}" title="删除（从 ${kind === 'plugin' ? 'plugins' : 'skills'}/ 目录移除）" aria-label="删除 ${esc(s.name)}">✕</button>`;
     // 显式开关：点击后冒泡到整卡 click，复用原有切换逻辑；加载失败的条目禁用
     const toggleBtn = `<button class="mcard-toggle ${s.enabled ? 'is-on' : ''}" data-skill-id="${esc(s.id)}" title="${s.enabled ? '当前已启用，点击禁用' : '当前已禁用，点击启用'}" aria-label="${s.enabled ? '禁用' : '启用'} ${esc(s.name)}" ${loadedOk ? '' : 'disabled'}>${s.enabled ? '已启用' : '已禁用'}</button>`;
     const haystack = [s.id, s.name, s.description, s.dir].filter(Boolean).join(' ').toLowerCase();
@@ -1397,7 +1398,7 @@ function renderModulePage(kind) {
         <div class="mcard-desc">${esc(s.description || '（没有写介绍）')}</div>
         ${errLine ? `<div class="mcard-err">${esc(errLine)}</div>` : ''}
       </div>
-      <div class="mcard-acts">${toggleBtn}${uploadBtn}${settingsBtn}</div>
+      <div class="mcard-acts">${toggleBtn}${uploadBtn}${settingsBtn}${delBtn}</div>
     </div>`;
   };
 
@@ -1489,6 +1490,32 @@ function bindModulePageEvents(kind) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       openMarketUploadModal(btn.dataset.skillKind || kind, btn.dataset.skillId);
+    });
+  });
+  // 删除（✕ 钮）：真正删除 skills/plugins 下的目录（停用 → 移入 data/.trash → 清配置）
+  scope.querySelectorAll('.mcard-del').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.skillId;
+      const k = btn.dataset.skillKind || kind;
+      const cur = (state.skills || []).find((s) => s.id === id);
+      const name = cur?.name || id;
+      const ok = await uiConfirm(
+        `确定删除「${name}」？\n\n` +
+        `类型：${k === 'plugin' ? '插件' : '技能'}\n` +
+        `会从 ${k === 'plugin' ? 'plugins' : 'skills'}/ 目录移除，并清理其配置；` +
+        `备份会保存在 data/.trash/（可手动恢复或彻底删除）。\n\n` +
+        `删除后该模块立即停止运行，不可从界面撤销。`
+      );
+      if (!ok) return;
+      btn.disabled = true;
+      try {
+        await api(`/api/modules/${k}/${encodeURIComponent(id)}?mode=uninstall&force=1`, { method: 'DELETE' });
+        await loadModulePage(k);
+      } catch (err) {
+        alert(`删除失败：${err?.message || err}`);
+        btn.disabled = false;
+      }
     });
   });
   // ── 整卡即开关：点击卡片任意处切换启停（复用原 skill-toggle 的请求链）──

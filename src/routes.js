@@ -1087,13 +1087,13 @@ export function createRoutes(deps) {
       }
     },
     {
-      // 卸载用户安装的模块：停用 → 目录移入 data/.trash/ → 清配置 → 注销登记。
-      // 内置模块、未登记模块、符号链接与越界路径一律拒绝；暂不提供彻底删除。
+      // 删除模块：停用 → 移入 data/.trash/（mode=purge 时彻底删除）→ 清配置 → 注销登记。
+      // 内置模块默认 403；带 force=1（界面二次确认）才允许删除。符号链接与越界路径一律拒绝。
       method: 'DELETE', pattern: /^\/api\/modules\/(skill|plugin)\/([a-z0-9][a-z0-9._-]*)$/i,
       handler: async ({ res, json, url, match }) => {
         const mode = url.searchParams.get('mode') || 'uninstall';
-        if (mode !== 'uninstall') {
-          return json(res, 400, { ok: false, code: 'BAD_MODE', error: '当前仅支持 mode=uninstall' });
+        if (mode !== 'uninstall' && mode !== 'purge') {
+          return json(res, 400, { ok: false, code: 'BAD_MODE', error: 'mode 只能是 uninstall 或 purge' });
         }
         try {
           const result = await uninstallModule({
@@ -1102,7 +1102,9 @@ export function createRoutes(deps) {
             skillManager,
             context: skillRuntimeContext(),
             reloadSkills,
-            log
+            log,
+            force: url.searchParams.get('force') === '1',
+            purge: mode === 'purge'
           });
           return json(res, 200, { ok: true, ...result });
         } catch (error) {

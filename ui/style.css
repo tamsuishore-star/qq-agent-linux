@@ -937,12 +937,13 @@ td b, .tbl td b { color: var(--tx); font-weight: 600; }
   display: flex; align-items: center; gap: 8px;
   flex-shrink: 0; margin-left: auto;
 }
-.mcard-gear, .mcard-upload {
+.mcard-gear, .mcard-upload, .mcard-del {
   width: 36px; height: 36px; border-radius: var(--r-sm);
   border: 1px solid var(--bd2); background: var(--bg2); color: var(--tx2);
   display: grid; place-items: center; font-size: 16px;
 }
 .mcard-gear:hover, .mcard-upload:hover { background: var(--ac); color: #fff; border-color: var(--ac); }
+.mcard-del:hover { background: var(--danger, #e5484d); color: #fff; border-color: var(--danger, #e5484d); }
 
 /* ══ 8. 设置页 ══ */
 .settings-sidebar {
