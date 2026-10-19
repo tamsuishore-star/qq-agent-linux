@@ -16,7 +16,17 @@ Linux QQ Agent 的产品版本从 **V1.0.0** 起算；上游 `package.json` 的 
 
 ### 已完成（2026-10-19）
 
-- **基线**：创建并推送标签 `v1.0.0`，新建 `develop/v1.1.0` 开发分支
+- **新版工作台 `/next`（预览）**：侧边栏布局、深色/浅色主题、总览/能力/日志/关于四页；全部数据来自真实接口
+  - 位置：`ui-next/`、`src/app.js`（`/next` 静态入口）
+  - 验证：staging 下页面 200、CSS/JS 200
+- **模块卸载链路**：
+  - `GET /api/modules`（列表 + 内置清单 + 安装登记）
+  - `DELETE /api/modules/:kind/:id?mode=uninstall`（停用 → 移入 `data/.trash/` → 清配置 → 注销）
+  - `config/builtin-modules.json`（44 个内置快照，只允许禁用）
+  - `data/modules-registry.json`（市场安装登记，只有登记过的可卸载）
+  - 安全：id 校验、路径范围校验、拒绝符号链接、内置 403
+  - 验证：staging fixture 卸载成功并落盘回收站；内置模块返回 403
+- **基线**：标签 `v1.0.0`、分支 `develop/v1.1.0`
 - **品牌（UI 显示名）**：顶栏/页面标题/启动提示改为 **TamsuiShore QQ Agent · 淡水海边**
   - 位置：`ui/index.html`
   - 说明：仅显示名，仓库名、远程地址、包名未改

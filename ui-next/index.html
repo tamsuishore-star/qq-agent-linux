@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'" />
+  <title>TamsuiShore QQ Agent · 新版工作台</title>
+  <link rel="stylesheet" href="/next/app.css" />
+  <script defer src="/next/app.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="logo">TS</span>
+        <span class="brand-text"><b>TamsuiShore</b><small>QQ Agent</small></span>
+      </div>
+      <nav class="nav" id="nav">
+        <button class="nav-item" data-page="overview">总览</button>
+        <button class="nav-item" data-page="modules">能力</button>
+        <button class="nav-item" data-page="logs">日志</button>
+        <button class="nav-item" data-page="about">关于</button>
+      </nav>
+      <div class="side-foot">
+        <span class="dot" id="conn-dot"></span>
+        <span id="conn-text">连接中…</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <h1 id="page-title">总览</h1>
+        <div class="top-actions">
+          <span class="chip muted" id="model-chip">模型 -</span>
+          <button class="btn ghost" id="pause-btn" type="button">暂停</button>
+          <button class="btn ghost" id="theme-btn" type="button" title="切换深色/浅色">主题</button>
+          <button class="btn primary" id="refresh-btn" type="button">刷新</button>
+        </div>
+      </header>
+
+      <section class="page" id="page-overview">
+        <div class="status-banner" id="status-banner">
+          <div class="sb-main">
+            <span class="dot big" id="sb-dot"></span>
+            <div>
+              <div class="sb-title" id="sb-title">读取中…</div>
+              <div class="sb-sub" id="sb-sub"></div>
+            </div>
+          </div>
+          <div class="sb-meta" id="sb-meta"></div>
+        </div>
+
+        <div class="grid stats" id="stat-grid"></div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>健康检查</h2>
+            <span class="muted" id="health-count"></span>
+          </div>
+          <div id="health-list" class="list"></div>
+        </div>
+      </section>
+
+      <section class="page hidden" id="page-modules">
+        <div class="toolbar">
+          <div class="seg" id="kind-seg">
+            <button class="seg-btn active" data-kind="all" type="button">全部</button>
+            <button class="seg-btn" data-kind="skill" type="button">技能</button>
+            <button class="seg-btn" data-kind="plugin" type="button">插件</button>
+          </div>
+          <input class="input" id="module-search" type="search" placeholder="搜索名称 / 简介 / ID" />
+          <select class="input select" id="module-status">
+            <option value="all">全部状态</option>
+            <option value="on">已启用</option>
+            <option value="off">已禁用</option>
+            <option value="error">异常</option>
+          </select>
+          <span class="muted" id="module-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>模块</th><th>类型</th><th>版本</th><th>来源</th><th>状态</th><th class="right">操作</th></tr>
+            </thead>
+            <tbody id="module-rows"></tbody>
+          </table>
+          <div class="empty hidden" id="module-empty">没有匹配的模块</div>
+        </div>
+      </section>
+
+      <section class="page hidden" id="page-logs">
+        <div class="toolbar">
+          <select class="input select" id="log-level">
+            <option value="all">全部级别</option>
+            <option value="error">error</option>
+            <option value="warn">warn</option>
+            <option value="info">info</option>
+            <option value="debug">debug</option>
+          </select>
+          <label class="check"><input type="checkbox" id="log-auto" /> 自动刷新</label>
+          <button class="btn ghost" id="log-refresh" type="button">刷新</button>
+          <span class="muted" id="log-count"></span>
+        </div>
+        <div class="panel logs" id="log-list"></div>
+      </section>
+
+      <section class="page hidden" id="page-about">
+        <div class="panel about">
+          <h2>TamsuiShore QQ Agent</h2>
+          <p class="muted">Linux 版工作台 · 新版预览（/next）。旧版控制台仍在 <a href="/">/</a>，确认后再切换默认。</p>
+          <dl>
+            <dt>版本</dt><dd id="about-version">-</dd>
+            <dt>Git 仓库</dt><dd><a href="https://github.com/tamsuishore-star/qq-agent-linux" target="_blank" rel="noopener">qq-agent-linux（私有）</a></dd>
+            <dt>内置模块</dt><dd id="about-builtin">-</dd>
+            <dt>用户安装</dt><dd id="about-installed">-</dd>
+          </dl>
+          <h3>外部资源（非本机服务）</h3>
+          <ul class="links">
+            <li><a href="https://www.kondius.cn/qq-agent/" target="_blank" rel="noopener">上游项目官网（外部）</a></li>
+            <li><a href="https://github.com/K0nd1us/QQ-agent" target="_blank" rel="noopener">上游 GitHub（外部）</a></li>
+          </ul>
+          <p class="muted small">外部链接依赖第三方服务，是否可用与本项目无关。</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+
+  <dialog class="dialog" id="confirm-dialog">
+    <form method="dialog">
+      <h3 id="confirm-title">确认操作</h3>
+      <p id="confirm-text"></p>
+      <pre class="confirm-detail" id="confirm-detail"></pre>
+      <div class="dialog-actions">
+        <button class="btn ghost" value="cancel" type="submit">取消</button>
+        <button class="btn danger" value="ok" type="submit">确认</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

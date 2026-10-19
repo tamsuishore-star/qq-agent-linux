@@ -34,6 +34,8 @@ import { safeFetchBinary, browseLockState } from './safe-fetch.js';
 import { getGlobalBlocklist, updateGlobalBlocklist, FIXED_PRICE_FEED_URL } from './community.js';
 import { listAccounts, removeAccount, loginAccount, publishModule, verifyInstallCodes, installByCode } from './market.js';
 import { detectDialect as detectThinkingDialect } from './thinking.js';
+import { uninstallModule } from './modules/removal.js';
+import { registerInstalled, builtinIds, listInstalled } from './modules/registry.js';
 
 /**
  * 构建路由表。
@@ -924,6 +926,8 @@ export function createRoutes(deps) {
         if (!/^[A-Z0-9]{4,12}$/.test(code)) return json(res, 400, { ok: false, error: '口令格式无效' });
         try {
           const r = await installByCode({ code, verified: body?.entry || null });
+          // 登记为用户安装模块：只有登记过的模块才允许卸载（内置模块受保护）
+          try { registerInstalled({ id: r.id, kind: r.kind, source: 'market', meta: { code } }); } catch { /* 登记失败不阻断安装 */ }
           // 安装完立即重扫，让新模块马上出现在页签里（热重载 watcher 也行，
           // 但目录删除重建的场景 watcher 会丢事件 —— reload 是唯一可靠路径）
           try { await reloadSkills({ reason: 'market-install' }); } catch { /* 重扫失败不影响安装结果 */ }
@@ -1068,6 +1072,46 @@ export function createRoutes(deps) {
           settings: skillManager.settingsView(id),
           config: sanitizeConfig(getConfig())
         });
+      }
+    },
+    {
+      // 模块总览（新版工作台用）：列表 + 内置清单 + 用户安装登记。
+      method: 'GET', pattern: '/api/modules',
+      handler: async ({ res, json }) => {
+        const context = skillRuntimeContext();
+        return json(res, 200, {
+          modules: skillManager.list(context),
+          builtin: [...builtinIds()],
+          installed: listInstalled()
+        });
+      }
+    },
+    {
+      // 卸载用户安装的模块：停用 → 目录移入 data/.trash/ → 清配置 → 注销登记。
+      // 内置模块、未登记模块、符号链接与越界路径一律拒绝；暂不提供彻底删除。
+      method: 'DELETE', pattern: /^\/api\/modules\/(skill|plugin)\/([a-z0-9][a-z0-9._-]*)$/i,
+      handler: async ({ res, json, url, match }) => {
+        const mode = url.searchParams.get('mode') || 'uninstall';
+        if (mode !== 'uninstall') {
+          return json(res, 400, { ok: false, code: 'BAD_MODE', error: '当前仅支持 mode=uninstall' });
+        }
+        try {
+          const result = await uninstallModule({
+            kind: match[1].toLowerCase(),
+            id: match[2],
+            skillManager,
+            context: skillRuntimeContext(),
+            reloadSkills,
+            log
+          });
+          return json(res, 200, { ok: true, ...result });
+        } catch (error) {
+          return json(res, error.status || 500, {
+            ok: false,
+            code: error.code || 'UNINSTALL_FAILED',
+            error: String(error?.message ?? error)
+          });
+        }
       }
     },
     {
