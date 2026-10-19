@@ -1,4 +1,4 @@
-// QQ 空间技能：让 AI 自己发说说（好友可见），选题来自网络热点 + 自己的评价，可配表情包。
+// QQ 空间技能：让 AI 自己发说说（可见范围可配：所有人/仅好友/仅自己），选题来自网络热点 + 自己的评价，可配表情包。
 //
 // ── 底层能力从哪来 ──
 // 协议端（snowluma / NapCat 系）已经实现了完整的空间动作，包括 `send_qzone_msg`
@@ -10,7 +10,7 @@
 // 里面有 ctx.onebot —— 与群管理技能同一个支点。
 //
 // ── 隐私：为什么说说绝对不能来自群聊 ──
-// 群聊是**半私密**的（就那几个人看），空间是**广播**（所有好友可见）。把群里的
+// 群聊是**半私密**的（就那几个人看），空间是**广播**（可能所有人可见）。把群里的
 // 对话写进说说，等于替群友做了"公开"这个决定 —— 这是实打实的隐私泄露。
 // 最初版本没防住这点，模型确实写了跟群聊相关的内容。现在三道拦：
 //   1. 提示词：明确禁止提及任何群友、任何群聊内容
@@ -19,7 +19,7 @@
 // 第 3 道是粗筛、一定有漏网，所以前两道才是主力。
 //
 // ── 用户的硬要求，以及它们分别落在哪一层 ──
-//   「只能好友可见」      → 代码写死 ugc_right=4，工具不暴露该参数
+//   「可见范围可选」      → 设置项 ugcRight ∈ {1 所有人, 4 仅好友, 16 仅自己}，默认 4；工具不暴露该参数
 //   「不能跟任何时政相关」 → lib/safe-topic.js 硬拦，发布前校验，命中即拒
 //   「游戏/二次元/沙雕」   → lib/hot.js 题材白名单，选题阶段就过滤
 //   「一周两三次，别太高」 → lib/state.js 周配额 + 最小间隔 + 冷却，写在磁盘上
@@ -32,8 +32,16 @@ import { checkContent, mentionsPersonOrChat, isAllowedImageUrl } from './lib/saf
 import { fetchHotTopics } from './lib/hot.js';
 import { pickMemes } from './lib/meme.js';
 
-/** 好友可见。写死 —— 不暴露给模型，也不做成可配项，避免哪天被改成所有人可见。 */
-const UGC_RIGHT_FRIENDS = 4;
+/** 可见范围：1 所有人 / 4 仅 QQ 好友 / 16 仅自己。默认 4，工具不暴露给模型。 */
+const UGC_RIGHT_VALUES = new Set([1, 4, 16]);
+const UGC_RIGHT_LABELS = { 1: '所有人可见', 4: '仅 QQ 好友可见', 16: '仅自己可见' };
+
+/** 每次执行现读设置，改完下一条立即生效。 */
+function visibility() {
+  const n = Number(cfg().ugcRight);
+  const value = UGC_RIGHT_VALUES.has(n) ? n : 4;
+  return { value, label: UGC_RIGHT_LABELS[value] };
+}
 
 let cfg = () => ({});
 let log = () => {};
@@ -149,7 +157,7 @@ export function setup(api) {
   api.registerTool({
     id: 'publish_qzone_post',
     name: '发说说',
-    description: '把一段内容发到自己的 QQ 空间（说说）。可见范围固定为「好友可见」，不可更改。内容必须是游戏、二次元、沙雕搞笑、科技玩梗这类轻松话题，并带上你自己的评价或吐槽。**绝对不能写群里发生的事、不能提任何群友、不能引用群聊内容**（空间是所有好友可见的，写群聊等于泄露别人隐私）。**任何时政、社会新闻、灾难事故、民族宗教内容都会被拒绝**，被拒了不要照原样重试，换个安全话题重写。可选传 image 配一张表情包（先用 pick_qzone_meme 拿 url）。频率限制只拦"你自己想发"的情况；**用户明确要求你发时传 forced=true，不受频率限制**。',
+    description: '把一段内容发到自己的 QQ 空间（说说）。可见范围由技能设置决定（所有人可见 / 仅 QQ 好友 / 仅自己，默认仅好友），模型不要传该参数。内容必须是游戏、二次元、沙雕搞笑、科技玩梗这类轻松话题，并带上你自己的评价或吐槽。**绝对不能写群里发生的事、不能提任何群友、不能引用群聊内容**（空间是广播、可能所有人可见，写群聊等于泄露别人隐私）。**任何时政、社会新闻、灾难事故、民族宗教内容都会被拒绝**，被拒了不要照原样重试，换个安全话题重写。可选传 image 配一张表情包（先用 pick_qzone_meme 拿 url）。频率限制只拦"你自己想发"的情况；**用户明确要求你发时传 forced=true，不受频率限制**。',
     category: 'media',
     icon: '📮',
     parameters: {
@@ -181,7 +189,7 @@ export function setup(api) {
         const leak = mentionsPersonOrChat(content);
         if (leak) {
           return err(`这条内容提到了人或群聊（「${leak}」），不能发。`
-            + '空间是所有好友可见的，写群里的人和事等于把群友的聊天记录公开出去。'
+            + `空间是广播（当前可见范围：${visibility().label}），写群里的人和事可能把群友的聊天记录公开出去。`
             + '请改成只谈公共话题（游戏 / 动画 / 梗 / 科技），用自己的口吻写，不要出现任何群友、也不要复述群里聊了什么。');
         }
 
@@ -203,10 +211,11 @@ export function setup(api) {
         }
 
         // ⑤ 发布。带图失败就退纯文字 —— 不能让"配图出了岔子"导致整条说说发不出去。
+        const vis = visibility();
         const post = async (withImage) => ctx.onebot.call('send_qzone_msg', {
           content,
           ...(withImage ? { images: [withImage] } : {}),
-          ugc_right: UGC_RIGHT_FRIENDS
+          ugc_right: vis.value
         });
 
         let resp = null;
@@ -245,7 +254,7 @@ export function setup(api) {
 
         return ok({
           posted: true,
-          visibility: '好友可见',
+          visibility: vis.label,
           length: content.length,
           withImage: attached,
           forced,
@@ -300,7 +309,7 @@ export function setup(api) {
           maxPerWeek: r.maxPerWeek,
           minGapDays: r.minGapDays,
           nextAllowedAt: gate.nextAllowedAt ? new Date(gate.nextAllowedAt).toLocaleString('zh-CN', { hour12: false }) : null,
-          visibility: '好友可见（固定）',
+          visibility: visibility().label,
           note: '用户明确要求发时传 forced=true 可跳过频率限制（不计数）。',
           recent: hist
         });
@@ -344,11 +353,11 @@ export const hooks = {
     const nudge = '\n\n[系统提示·没人要求你做任何事] 你的 QQ 空间有阵子没更新了，'
       + `本周还没发满（上限 ${r.maxPerWeek} 条），现在是发一条的好时机。`
       + '发的话：先调 fetch_qzone_topics 看看网上有什么热点，挑一条你真想吐槽/感慨的，'
-      + '写成你自己的口吻（别写成新闻稿），再调 publish_qzone_post 发出去——可见范围是好友可见，不用你设置。'
+      + `写成你自己的口吻（别写成新闻稿），再调 publish_qzone_post 发出去——可见范围由技能设置决定（当前：${visibility().label}），不用你设置。`
       + '想配图就先调 pick_qzone_meme 挑一张表情包，把 url 传给 image 参数。'
       // 这段是隐私防线的关键：明确切断"群聊 → 说说"的联想
       + '**注意：说说的话题只能来自网络热点或你自己的想法，不要写群里刚聊的事、不要提任何群友、不要复述任何人的话。**'
-      + '空间是所有好友可见的，把群聊写进去等于替群友做了公开的决定。'
+      + '空间是广播（可能所有人可见），把群聊写进去等于替群友做了公开的决定。'
       + '内容只能是游戏、二次元、沙雕搞笑、科技玩梗这类轻松话题，任何时政相关的一律不行。'
       + (recent.length ? `你最近发过这些，别重复：${recent.join('；')}。` : '')
       + '不想发也完全可以，那就当没看见这条提醒。'
