@@ -11,7 +11,7 @@
 import { getConfig, storeConfigForChat, personaForChat } from './config.js';
 import { vendorOfConfig } from './model-prices.js';
 import { randInt } from './util.js';
-import { buildSystemPrompt, buildUserPrompt, resolveContextTier } from './prompt.js';
+import { buildSystemPrompt, buildUserPrompt, resolveContextTier, isAtMe } from './prompt.js';
 import { chatCompletion, chatCompletionWithRetry, addUsage, isRetryableError } from './llm.js';
 import { buildToolDefs, toOpenAiTools, executeTool } from './tools.js';
 import { modelImageVerdict } from './vision-scan.js';
@@ -199,6 +199,35 @@ export class Orchestrator {
         this.emit('chat-update', chatKey);
         return;
       }
+    }
+
+    // 高峰期节流：插件在排定会话前询问 reply.gate。
+    // 拒绝时只把这条消息标已读，不建会话、不调模型 —— 这是"不产生 token"的位置，
+    // 比在模型请求里改 prompt 更彻底。@ / 命令 / 私聊的豁免由插件自己决定。
+    try {
+      const selfNick = cfg.persona?.selfNickname || this.onebot.selfNickname || '';
+      const selfId = cfg.onebot?.selfId || this.onebot.selfId || '';
+      const text = String(entry?.text || '');
+      const gateCtx = {
+        chatKey,
+        isPrivate: String(chatKey).startsWith('private:'),
+        atMe: entry ? isAtMe(text, { selfNickname: selfNick, botName: cfg.persona?.botName || '', selfId }) : false,
+        isCommand: /^[/!！]/.test(text.trim())
+      };
+      for (const p of skillManager.getCapabilityProviders('reply.gate', gateCtx)) {
+        let decision = null;
+        try { decision = p.fn(gateCtx); }
+        catch (error) { skillManager.recordError('reply.gate', error); continue; }
+        if (decision && decision.allow === false) {
+          if (entry) this.store.markEntryRead(chatKey, entry.id);
+          else this.store.markAllRead(chatKey);
+          this.emit('chat-update', chatKey);
+          console.info(`[peak-guard] 跳过 ${chatKey}：${decision.reason || '节流'}`);
+          return;
+        }
+      }
+    } catch (error) {
+      skillManager.recordError('reply.gate', error);
     }
 
     // 触发：进入固定的"等待中"倒计时（不重置）。verified 标记让 wake 知道
