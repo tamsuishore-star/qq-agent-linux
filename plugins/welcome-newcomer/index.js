@@ -79,6 +79,8 @@ const stats = {
   lastTest: '',         // 最近一次测试指令
   previews: 0,          // 私信预览次数
   lastPreview: '',      // 最近一次私信预览的内容
+  aiWelcomes: 0,        // AI 成功生成的欢迎语条数
+  aiFallbacks: 0,       // AI 失败后回退模板的次数
   fallbackRuns: 0,      // 从会话入口补跑的次数（原始事件那条路还没挂上的"第一条消息"）
   leaveDetected: 0,     // 靠「成员名单比对」兜底检出的退群次数（协议端没上报通知时）
   noticeKinds: {},      // 协议端上报过的通知类型统计（排障：确认事件到底有没有来）
@@ -482,8 +484,15 @@ async function previewInPrivate(kind, gid, uid, toUid) {
     await replyPrivate(toUid, `[预览] ${isJoin ? '欢迎语' : '告别语'}还是空的，去插件设置里填一条才能看效果。`);
     return;
   }
-  const info = gid ? await fetchInfo(gid, uid) : { nick: '', group: '', count: '' };
-  const { text, useAt } = render(pickLine(raw), { ...info, qq: uid });
+  const info = gid ? await fetchProfile(gid, uid) : { nick: '', group: '', count: '' };
+  let text = '';
+  let useAt = false;
+  if (isJoin && s.aiEnabled !== false) {
+    try { text = await generateWelcome(gid, uid, info); } catch { /* 预览失败回退模板 */ }
+  }
+  if (!text) {
+    ({ text, useAt } = render(pickLine(raw), { ...info, qq: uid }));
+  }
   if (!text) {
     await replyPrivate(toUid, '[预览] 渲染出来是空的，检查一下占位符是不是写错了。');
     return;
@@ -587,8 +596,19 @@ async function handleJoin(gid, uid, opts = {}) {
   const delay = Math.min(60, Math.max(0, num(s.delaySec, 3)));
   if (delay > 0) await sleep(delay * 1000);
 
-  const info = await fetchInfo(gid, uid);
-  const { text, useAt } = render(tpl, { ...info, qq: uid });
+  const info = await fetchProfile(gid, uid);
+  let text = '';
+  let useAt = false;
+  if (s.aiEnabled !== false) {
+    try { text = await generateWelcome(gid, uid, info); }
+    catch (error) { debug(`AI 欢迎语生成失败，回退模板：${error?.message ?? error}`); }
+  }
+  if (text) {
+    stats.aiWelcomes++;
+  } else {
+    ({ text, useAt } = render(tpl, { ...info, qq: uid }));
+    if (s.aiEnabled !== false) stats.aiFallbacks++;
+  }
   if (!text) { debug('渲染出来的欢迎语是空的，跳过'); return; }
 
   const wantAt = useAt || s.atNewcomer !== false;
@@ -1036,6 +1056,64 @@ async function fetchInfo(gid, uid) {
   return out;
 }
 
+/** 取 QQ 资料（昵称/个性签名/性别年龄/QID），失败就只用群名片。 */
+async function fetchProfile(gid, uid) {
+  const info = await fetchInfo(gid, uid);
+  const out = { ...info, sex: '', age: '', sign: '', qid: '' };
+  const ob = onebotRef;
+  if (!ob || typeof ob.call !== 'function') return out;
+  try {
+    const r = await ob.call('get_stranger_info', { user_id: Number(uid) });
+    const d = r?.data ?? r;
+    out.sex = String(d?.sex || '');
+    out.age = d?.age != null ? String(d.age) : '';
+    out.sign = String(d?.longNick || d?.long_nick || d?.sign || '').trim();
+    out.qid = String(d?.qid || d?.uin || '').trim();
+    if (!out.nick) out.nick = String(d?.nickname || d?.nick || '').trim();
+  } catch { /* 资料接口不可用不影响欢迎 */ }
+  return out;
+}
+
+/**
+ * 用 AI 生成一句专属欢迎语。
+ * 只用 QQ 里可观察到的信息（昵称、群名片、个性签名、群名/人数）；
+ * NapCat 不支持读陌生人的空间动态，所以不伪造“看过你空间”。
+ * 失败/为空时由调用方回退到模板。
+ */
+async function generateWelcome(gid, uid, info = null) {
+  const s = settings();
+  if (s.aiEnabled === false) return '';
+  const p = info || await fetchProfile(gid, uid);
+  const maxChars = Math.max(20, Math.min(120, num(s.aiMaxChars, 60)));
+  const llm = await import('../../src/llm.js');
+
+  const facts = [
+    `昵称：${p.nick || uid}`,
+    p.sign ? `个性签名：${String(p.sign).slice(0, 80)}` : '',
+    (p.sex || p.age) ? `资料：${p.sex || '未知'}${p.age ? ` / ${p.age} 岁` : ''}` : '',
+    p.group ? `群名：${p.group}` : '',
+    p.count ? `群人数：${p.count}` : ''
+  ].filter(Boolean).join('\n');
+
+  const system = '你在一个 QQ 群里，负责给刚进群的新人写一句欢迎语。\n'
+    + '要求：只输出这一句欢迎语，不要解释、不要引号、不要 @（发送时会自动 @）。\n'
+    + `长度不超过 ${maxChars} 字，自然、有温度、像群友说话；可以化用昵称或个性签名，`
+    + '但不要提“我看了你的资料/空间”，不要打探隐私，不要时政、低俗、冒犯或让人尴尬的玩梗。\n'
+    + (String(s.aiStyle || '').trim() ? `风格：${String(s.aiStyle).trim()}` : '');
+  const userMsg = `新成员资料：\n${facts}\n\n请写一句独一无二的欢迎语。`;
+
+  const res = await llm.chatCompletion({
+    messages: [{ role: 'system', content: system }, { role: 'user', content: userMsg }],
+    temperature: 0.95,
+    maxTokens: Math.max(80, Math.min(600, num(s.aiMaxTokens, 300)))
+  });
+  const raw = res?.message?.content;
+  let text = Array.isArray(raw) ? raw.map((x) => x?.text ?? '').join('') : String(raw ?? '');
+  text = text.trim().replace(/^["“'']+|["”'']+$/g, '').replace(/\s+/g, ' ').trim();
+  if (!text || text.length < 4) return '';
+  return text.slice(0, maxChars);
+}
+
 /** 节流写状态文件：看「有没有接管事件流 / 收到几次入群」用。 */
 function flushState(force = false) {
   const now = Date.now();
@@ -1059,3 +1137,4 @@ export const internals = {
   parseGroupIds, groupGate, matchTestCommand, messageTextOf, vetoTestCommand, tryTestCommand,
   pollLeaves, memberIds, checkGroupLeaves, runFromIncoming, markLeft
 };
+
