@@ -1501,16 +1501,15 @@ function bindModulePageEvents(kind) {
       const cur = (state.skills || []).find((s) => s.id === id);
       const name = cur?.name || id;
       const ok = await uiConfirm(
-        `确定删除「${name}」？\n\n` +
+        `确定永久删除「${name}」？\n\n` +
         `类型：${k === 'plugin' ? '插件' : '技能'}\n` +
-        `会从 ${k === 'plugin' ? 'plugins' : 'skills'}/ 目录移除，并清理其配置；` +
-        `备份会保存在 data/.trash/（可手动恢复或彻底删除）。\n\n` +
-        `删除后该模块立即停止运行，不可从界面撤销。`
+        `会从 ${k === 'plugin' ? 'plugins' : 'skills'}/ 目录直接删除整个文件夹，并清理其配置。\n\n` +
+        `⚠️ 这是彻底删除，不进回收站，删除后无法从界面恢复。`
       );
       if (!ok) return;
       btn.disabled = true;
       try {
-        await api(`/api/modules/${k}/${encodeURIComponent(id)}?mode=uninstall&force=1`, { method: 'DELETE' });
+        await api(`/api/modules/${k}/${encodeURIComponent(id)}?mode=purge&force=1`, { method: 'DELETE' });
         await loadModulePage(k);
       } catch (err) {
         alert(`删除失败：${err?.message || err}`);
