@@ -15,8 +15,8 @@ const base = {
 };
 
 function reset(config = {}) {
-  setup({ config: () => ({ ...base, ...config }), log: () => {} });
-  internals.buckets.clear();
+  setup({ config: () => ({ ...base, autoPressure: true, ...config }), log: () => {} });
+  internals.reset();
 }
 
 test('parseHours 支持多段与跨夜', () => {
@@ -61,4 +61,29 @@ test('off 模式不拦截', () => {
   reset({ mode: 'off' });
   const ctx = { chatKey: 'group:9', isPrivate: false, atMe: false, isCommand: false };
   for (let i = 0; i < 5; i++) assert.equal(internals.gate(ctx).allow, true);
+});
+
+test('429 会自动升压并拦截（即使不在配置时段）', () => {
+  reset({ mode: 'smart', peakHours: '0-0' });
+  const ctx = { chatKey: 'group:8', isPrivate: false, atMe: false, isCommand: false };
+  assert.equal(internals.gate(ctx).allow, true);
+  providers['llm.request-feedback']({ ok: false, status: 429, latencyMs: 1000 });
+  assert.equal(internals.gate(ctx).allow, true);   // 压力下仍先按预算放行一次
+  assert.equal(internals.gate(ctx).allow, false);  // 预算用尽
+});
+
+test('连续慢请求会自动升压', () => {
+  reset({ mode: 'smart', peakHours: '0-0', slowMs: 15000, windowSec: 300 });
+  const ctx = { chatKey: 'group:7', isPrivate: false, atMe: false, isCommand: false };
+  for (let i = 0; i < 3; i++) providers['llm.request-feedback']({ ok: true, status: 200, latencyMs: 20000 });
+  assert.equal(internals.gate(ctx).allow, true);   // 第一次仍在预算内
+  assert.equal(internals.gate(ctx).allow, false);  // 第二次超预算
+});
+
+test('正常延迟不会误触发', () => {
+  reset({ mode: 'smart', peakHours: '0-0', slowMs: 15000 });
+  const ctx = { chatKey: 'group:6', isPrivate: false, atMe: false, isCommand: false };
+  for (let i = 0; i < 3; i++) providers['llm.request-feedback']({ ok: true, status: 200, latencyMs: 500 });
+  assert.equal(internals.auto.until, 0);          // 正常延迟不升压
+  assert.equal(internals.gate(ctx).allow, true);
 });

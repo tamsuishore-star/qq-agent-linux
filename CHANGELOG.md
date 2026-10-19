@@ -18,7 +18,7 @@ Linux QQ Agent 的产品版本从 **V1.0.0** 起算；上游 `package.json` 的 
 
 - **peak-guard 高峰期智能节流**：核心新增 `reply.gate` 能力点（`Orchestrator.onIncoming` 排会话前），插件按高峰时段 + 每群/全局每分钟预算拦截普通群聊调用；`save/strict` 额外限制 max_tokens
   - 配置：`plugins/peak-guard/plugin.json`（模式/时段/预算/豁免）
-  - 测试：`test/peak-guard.test.mjs` 6/6
+  - 自动升压：429/503、错误率、平均延迟超阈值时进入压力状态并保持（滞回），阈值可配\n  - 测试：`test/peak-guard.test.mjs` 9/9
   - 基线（生产 7 天）：输入 87.4M、缓存 76.9M、命中率 87.98%、调用 3078 次、估算成本 ¥16.62
 - **界面决策（最终）**：沿用经典工作台（`/`），移除 `/next` 预览与 `ui-next/`；经典界面保留品牌、总览页、模块启停、外部链接标注等改进
 - **新版工作台 `/next`（已移除）**：曾用于预览，2026-10-19 按产品所有者决定删除

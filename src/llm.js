@@ -401,6 +401,7 @@ export async function chatCompletion({ messages, tools = null, toolChoice = 'aut
     // 不能走下面的"AbortError → 模型请求超时"分支：那条文案会被当成可重试的超时。
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     if (error?.name === 'AbortError') throw new Error(`模型请求超时（${timeoutMs}ms）`);
+    reportRequestFeedback({ ok: false, status: 0, latencyMs: Date.now() - startedAt, model: api.model, error: String(error?.cause?.message ?? error?.message ?? error) });
     throw new Error(`模型请求失败：${error?.cause?.message ?? error?.message ?? error}`);
   }
 
@@ -439,6 +440,7 @@ export async function chatCompletion({ messages, tools = null, toolChoice = 'aut
     if (poolAccountId) {
       reportPoolFeedback({ accountId: poolAccountId, ok: false, status: res.status, error: res.text.slice(0, 300) });
     }
+    reportRequestFeedback({ ok: false, status: res.status, latencyMs: Date.now() - startedAt, model: api.model });
     throw new Error(`模型 API HTTP ${res.status}：${res.text.slice(0, 500)}`);
   }
 
@@ -486,6 +488,7 @@ export async function chatCompletion({ messages, tools = null, toolChoice = 'aut
   if (poolAccountId) {
     reportPoolFeedback({ accountId: poolAccountId, ok: true, latencyMs: Date.now() - startedAt });
   }
+  reportRequestFeedback({ ok: true, status: 200, latencyMs: Date.now() - startedAt, model: api.model });
   return result;
 }
 
@@ -504,6 +507,21 @@ function reportPoolFeedback(payload) {
     }
   } catch (error) {
     skillManager.recordError('account-pool', error);
+  }
+}
+
+/**
+ * 回报一次模型请求的结果，供节流插件观测 429 / 延迟 / 失败率。
+ * 与账号池一样必须错误隔离：统计失败绝不能影响模型调用本身。
+ */
+function reportRequestFeedback(payload) {
+  try {
+    for (const p of skillManager.getCapabilityProviders('llm.request-feedback', {})) {
+      try { p.fn(payload); } catch (error) { skillManager.recordError('peak-guard', error); }
+      break;
+    }
+  } catch (error) {
+    skillManager.recordError('peak-guard', error);
   }
 }
 

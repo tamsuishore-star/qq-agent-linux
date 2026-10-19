@@ -24,9 +24,11 @@ const MODES = new Set(['off', 'smart', 'save', 'strict']);
 let api = null;
 const stats = {
   allowed: 0, denied: 0, exemptAt: 0, exemptCommand: 0, exemptPrivate: 0,
-  lastDeniedAt: 0, lastReason: '', lastChat: '', since: Date.now()
+  lastDeniedAt: 0, lastReason: '', lastChat: '', since: Date.now(), autoTriggers: 0
 };
 const buckets = new Map(); // key -> { minute, count }
+const feedback = [];       // 最近请求结果（有界），用于 429/延迟自动升压
+const auto = { until: 0, reason: '' };
 
 const cfg = () => {
   try { return (typeof api?.config === 'function' ? api.config() : null) || {}; }
@@ -66,13 +68,51 @@ function currentMode() {
   return MODES.has(m) ? m : 'smart';
 }
 
-/** 当前是否处于用户定义的"高峰"。smart 模式只在高峰施加预算。 */
+/** 当前是否处于"压力"：自动观测到 429/慢请求/高错误率，或用户配置的高峰时段。 */
 function pressureNow() {
   const s = cfg();
   const mode = currentMode();
   if (mode === 'off') return false;
+  if (s.autoPressure !== false && Date.now() < auto.until) return true;
   if (mode === 'strict') return true;
   return inPeakHours(s.peakHours ?? '9-12,14-18');
+}
+
+/**
+ * 观测一次模型请求结果。429/503、窗口内错误率或平均延迟超阈值时，
+ * 把状态提升为"压力"并保持 holdSec 秒（滞回，避免抖动）。
+ */
+export function observe(payload = {}) {
+  const s = cfg();
+  if (s.enabled === false || s.autoPressure === false) return;
+  const now = Date.now();
+  const winMs = num(s.windowSec, 300, 30, 3600) * 1000;
+  const holdMs = num(s.holdSec, 300, 30, 3600) * 1000;
+  feedback.push({
+    ts: now,
+    ok: payload.ok !== false,
+    status: Number(payload.status) || 0,
+    latencyMs: Number(payload.latencyMs) || 0
+  });
+  while (feedback.length > 100) feedback.shift();
+  while (feedback.length && now - feedback[0].ts > winMs) feedback.shift();
+
+  let reason = '';
+  if (payload.status === 429 || payload.status === 503) reason = `HTTP ${payload.status}`;
+  else if (feedback.length >= 3) {
+    const errs = feedback.filter((f) => !f.ok || f.status >= 500).length;
+    const rate = (errs / feedback.length) * 100;
+    const avg = feedback.reduce((n, f) => n + f.latencyMs, 0) / feedback.length;
+    const rateLimit = num(s.errorRatePct, 30, 1, 100);
+    const slowLimit = num(s.slowMs, 15000, 1000, 300000);
+    if (rate >= rateLimit) reason = `错误率 ${rate.toFixed(0)}%`;
+    else if (avg >= slowLimit) reason = `平均延迟 ${Math.round(avg)}ms`;
+  }
+  if (!reason) return;
+  auto.until = now + holdMs;
+  auto.reason = reason;
+  stats.autoTriggers += 1;
+  if (s.debugLog === true) log(`自动升压：${reason}，保持 ${Math.round(holdMs / 1000)}s`);
 }
 
 function take(key, limit) {
@@ -136,6 +176,7 @@ function deny(chatKey, reason) {
 
 export const providers = {
   'reply.gate': (ctx) => gate(ctx),
+  'llm.request-feedback': (payload) => observe(payload),
   // save/strict 下限制输出长度；normal 不改请求，避免影响正常回复质量。
   'llm.request-params': ({ body } = {}) => {
     const s = cfg();
@@ -149,6 +190,10 @@ export const providers = {
   'peak-guard.status': () => ({
     mode: currentMode(),
     pressure: pressureNow(),
+    autoUntil: auto.until ? new Date(auto.until).toLocaleString('zh-CN', { hour12: false }) : '',
+    autoReason: auto.reason,
+    recentRequests: feedback.length,
+    recent429: feedback.filter((f) => f.status === 429 || f.status === 503).length,
     peakHours: String(cfg().peakHours ?? '9-12,14-18'),
     limits: limits(currentMode()),
     ...stats,
@@ -178,4 +223,7 @@ export function activate() {
 
 export function deactivate() { /* 无监听器可摘 */ }
 
-export const internals = { stats, buckets, parseHours, inPeakHours, gate, limits };
+export const internals = {
+  stats, buckets, feedback, auto, parseHours, inPeakHours, gate, observe, limits,
+  reset() { buckets.clear(); feedback.length = 0; auto.until = 0; auto.reason = ''; }
+};
