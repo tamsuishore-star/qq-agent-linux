@@ -43,6 +43,22 @@ function visibility() {
   return { value, label: UGC_RIGHT_LABELS[value] };
 }
 
+/**
+ * 把发布结果回执到触发命令的群/私聊。
+ * 只在用户明确要求（forced=true）时调用；自动发不打扰会话。
+ */
+async function reportToOrigin(ctx, text) {
+  try {
+    const key = ctx?.chatKey;
+    if (!key || !ctx?.sender?.sendTextBatch) return false;
+    await ctx.sender.sendTextBatch(key, [text]);
+    return true;
+  } catch (error) {
+    log(`[qzone] 回执发送失败：${error?.message ?? error}`);
+    return false;
+  }
+}
+
 let cfg = () => ({});
 let log = () => {};
 let fetchImpl = null;
@@ -157,7 +173,7 @@ export function setup(api) {
   api.registerTool({
     id: 'publish_qzone_post',
     name: '发说说',
-    description: '把一段内容发到自己的 QQ 空间（说说）。可见范围由技能设置决定（所有人可见 / 仅 QQ 好友 / 仅自己，默认仅好友），模型不要传该参数。内容必须是游戏、二次元、沙雕搞笑、科技玩梗这类轻松话题，并带上你自己的评价或吐槽。**绝对不能写群里发生的事、不能提任何群友、不能引用群聊内容**（空间是广播、可能所有人可见，写群聊等于泄露别人隐私）。**任何时政、社会新闻、灾难事故、民族宗教内容都会被拒绝**，被拒了不要照原样重试，换个安全话题重写。可选传 image 配一张表情包（先用 pick_qzone_meme 拿 url）。频率限制只拦"你自己想发"的情况；**用户明确要求你发时传 forced=true，不受频率限制**。',
+    description: '把一段内容发到自己的 QQ 空间（说说）。可见范围由技能设置决定（所有人可见 / 仅 QQ 好友 / 仅自己，默认仅好友），模型不要传该参数。内容必须是游戏、二次元、沙雕搞笑、科技玩梗这类轻松话题，并带上你自己的评价或吐槽。**绝对不能写群里发生的事、不能提任何群友、不能引用群聊内容**（空间是广播、可能所有人可见，写群聊等于泄露别人隐私）。**任何时政、社会新闻、灾难事故、民族宗教内容都会被拒绝**，被拒了不要照原样重试，换个安全话题重写。可选传 image 配一张表情包（先用 pick_qzone_meme 拿 url）。频率限制只拦"你自己想发"的情况；**用户明确要求你发时传 forced=true，不受频率限制**。传了 forced 后，工具会自动把说说内容回执到当前群/私聊，你不用再复述。',
     category: 'media',
     icon: '📮',
     parameters: {
@@ -252,6 +268,14 @@ export function setup(api) {
         log(`[qzone] 已发说说 长度=${content.length} 配图=${attached ? '有' : '无'} tid=${tid ?? '未知'} `
           + `${forced ? '（用户强制，不计数）' : `本周第 ${weekNow} 条`}`);
 
+        // ⑥ 用户命令触发的发布：自动回执到当前群/私聊（不等模型复述）
+        let reported = false;
+        if (forced) {
+          const receipt = `📮 已发到 QQ 空间（${vis.label}）\n\n${content}`
+            + (tid != null ? `\n\n说说 ID：${tid}` : '');
+          reported = await reportToOrigin(ctx, receipt);
+        }
+
         return ok({
           posted: true,
           visibility: vis.label,
@@ -259,6 +283,7 @@ export function setup(api) {
           withImage: attached,
           forced,
           counted: !forced,
+          reportedToChat: reported,
           tid: tid != null ? String(tid) : null,
           weekCount: weekNow,
           maxPerWeek: r.maxPerWeek,
@@ -267,6 +292,9 @@ export function setup(api) {
             : null,
           note: (imageNote ? imageNote + ' ' : '')
             + (forced ? '（这条是用户明确要求发的，没占本周配额，也不影响下次自动发的时间。）' : '')
+            + (forced
+              ? (reported ? '已自动把说说内容回执到当前会话，你不用再复述全文。' : '回执发送失败（不影响空间发布）。')
+              : '')
             + '已经发出去了。回复里不要复述整段内容，也别播报"我发了条说说"这种机器话，正常接话或简单说一句就行。'
         });
       } catch (error) {
