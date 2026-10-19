@@ -42,8 +42,6 @@ try {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UI_DIR = path.resolve(__dirname, '..', 'ui');
-// V1.1.0 新版工作台：独立目录，先挂在 /next 供预览，确认后再切默认
-const UI_NEXT_DIR = path.resolve(__dirname, '..', 'ui-next');
 
 // ── 白名单判断（移植自原版 allowed()） ───────────────────────────────────
 function allowed(kind, id, cfg) {
@@ -1375,13 +1373,10 @@ export function createApp({ log = console.log } = {}) {
       // 旧实现 file.replace(/\.\./g,'') 只删字面 ".." —— "/....//" 删完仍还原出 ".."，
       // 且 startsWith 校验在 path.join 之后做（顺序颠倒），形同虚设。
       // 正确做法：先 URL 解码 → 规范化 → 拼接 → 用 path.relative 判断跳出界。
-      // 新版工作台挂载在 /next（独立目录，不影响现有 /）
-      const isNext = pathname === '/next' || pathname.startsWith('/next/');
-      const staticRoot = isNext ? UI_NEXT_DIR : UI_DIR;
-      const staticPath = isNext ? (pathname.slice(5) || '/') : pathname;
+      // 静态 UI（仅经典工作台；/next 预览已移除）
       let decoded;
       try {
-        decoded = decodeURIComponent(staticPath === '/' ? '/index.html' : staticPath);
+        decoded = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
       } catch {
         res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
         res.end('Bad Request');
@@ -1403,9 +1398,9 @@ export function createApp({ log = console.log } = {}) {
         res.end('Forbidden');
         return;
       }
-      const fullPath = path.join(staticRoot, ...clean);
-      // 二次校验：解析后的路径必须仍在对应 UI 根目录内
-      const relCheck = path.relative(staticRoot, fullPath);
+      const fullPath = path.join(UI_DIR, ...clean);
+      // 二次校验：解析后的路径必须仍在 UI_DIR 内
+      const relCheck = path.relative(UI_DIR, fullPath);
       if (relCheck === '' || relCheck.startsWith('..') || path.isAbsolute(relCheck)) {
         res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
         res.end('Forbidden');
