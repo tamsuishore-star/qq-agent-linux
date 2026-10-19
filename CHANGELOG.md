@@ -24,6 +24,12 @@ Linux QQ Agent 的产品版本从 **V1.0.0** 起算；上游 `package.json` 的 
   - 位置：`ui/index.html`、`ui/style.css`
 - **隐藏 SnowLuma 页签**：Linux 版由 NapCat 接入，该页签不适用；视图代码保留，入口隐藏
   - 位置：`ui/index.html`
+- **运行总览页（V1.1.0 第一个新页面）**：真实展示服务状态、QQ 连接、模型、进程内存、系统负载、技能/插件统计、今日用量
+  - 后端：`GET /api/overview`（仅进程/系统指标，不含配置与密钥）
+  - 前端：`ui/app/13-overview.js`、`ui/index.html`、`ui/style.css`
+  - 验证：独立 staging 实例启动后 `GET /api/overview` 返回 200；页面包含 `view-overview`；语法检查通过
+  - 状态：**仅在 develop 分支，未部署生产**
+- **发现待修**：生产模块列表中有 3 个坏副本 `reply-meme` / `reply-meme_1` / `reply-meme_2`（缺少 manifest）
 - **ADR**：新增 `docs/adr/0001-v1.1.0-scope-and-naming.md`，记录范围、命名、外部服务与平台边界决策
 - **运维：Node 堆上限 640MB → 960MB**（缓解 OOM，见下）
   - 位置：`/etc/systemd/system/qq-agent.service.d/limits.conf`
