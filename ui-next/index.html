@@ -7,205 +7,187 @@
   <title>TamsuiShore QQ Agent</title>
   <link rel="stylesheet" href="/next/app.css" />
   <script defer src="/next/app.js"></script>
+  <script defer src="/next/data-pages.js"></script>
   <script defer src="/next/settings.js"></script>
 </head>
 <body>
-  <div class="shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <span class="logo">TS</span>
-        <span class="brand-text"><b>TamsuiShore</b><small>QQ Agent</small></span>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="waveGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4c9aff"/><stop offset="1" stop-color="#38d6e6"/>
+    </linearGradient>
+  </defs>
+</svg>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <path d="M6 40c8-12 16-16 24-12s8 14 2 18c-5 3-9-1-7-6 2-4 7-5 10-2" stroke="url(#waveGrad)" stroke-width="3.6" stroke-linecap="round"/>
+        <path d="M4 47c10-8 18-10 26-6s14 4 30-6" stroke="url(#waveGrad)" stroke-width="3.6" stroke-linecap="round" opacity=".75"/>
+      </svg>
+      <span class="brand-text"><b>TamsuiShore</b><small>QQ Agent</small></span>
+    </div>
+    <nav class="nav" id="nav">
+      <button class="nav-item" data-page="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg><span>总览</span></button>
+      <button class="nav-item" data-page="sessions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-6.5A8 8 0 1 1 21 12Z"/></svg><span>会话</span></button>
+      <button class="nav-item" data-page="chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16v12H7l-3 3V5Z"/></svg><span>存档</span></button>
+      <button class="nav-item" data-page="memory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3a4 4 0 0 1 4 4c2 .6 3 2 3 4a3.5 3.5 0 0 1-1 6.4V19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-1.6A3.5 3.5 0 0 1 6 11c0-2 1-3.4 3-4a4 4 0 0 1 3-4Z"/></svg><span>记忆</span></button>
+      <button class="nav-item" data-page="usage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>用量</span></button>
+      <button class="nav-item" data-page="modules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="M3 13l9 5 9-5"/></svg><span>能力</span></button>
+      <button class="nav-item" data-page="logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 4h11l3 3v13H5V4Z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg><span>日志</span></button>
+      <button class="nav-item" data-page="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg><span>设置</span></button>
+      <button class="nav-item" data-page="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg><span>关于</span></button>
+    </nav>
+    <div class="side-foot"><span class="dot" id="conn-dot"></span><span id="conn-text">连接中…</span></div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="top-actions">
+        <span class="chip" id="model-chip">模型 -</span>
+        <span class="chip" id="uptime-chip">已运行 -</span>
+        <button class="btn ghost" id="pause-btn" type="button">暂停</button>
+        <button class="btn ghost icon" id="theme-btn" type="button" title="切换深色/浅色">◐</button>
+        <button class="btn primary" id="refresh-btn" type="button">刷新</button>
       </div>
-      <nav class="nav" id="nav">
-        <button class="nav-item" data-page="overview">总览</button>
-        <button class="nav-item" data-page="modules">能力</button>
-        <button class="nav-item" data-page="logs">日志</button>
-        <button class="nav-item" data-page="settings">设置</button>
-        <button class="nav-item" data-page="about">关于</button>
-      </nav>
-      <div class="side-foot">
-        <span class="dot" id="conn-dot"></span>
-        <span id="conn-text">连接中…</span>
+    </header>
+
+    <section class="page" id="page-overview"><div class="page-inner">
+      <div class="page-head"><h1>总览</h1><p>运行状态与健康检查</p></div>
+      <div class="hero">
+        <svg class="hero-wave" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <path d="M6 40c8-12 16-16 24-12s8 14 2 18c-5 3-9-1-7-6 2-4 7-5 10-2" stroke="url(#waveGrad)" stroke-width="3.6" stroke-linecap="round"/>
+          <path d="M4 47c10-8 18-10 26-6s14 4 30-6" stroke="url(#waveGrad)" stroke-width="3.6" stroke-linecap="round" opacity=".75"/>
+        </svg>
+        <div class="hero-main">
+          <div class="hero-title" id="sb-title">读取中…</div>
+          <div class="hero-sub" id="sb-sub"></div>
+          <div class="hero-tags">
+            <span class="chip"><span class="dot" id="sb-dot"></span><span id="sb-tag">连接状态</span></span>
+            <span class="chip" id="hero-account">账号 -</span>
+            <span class="chip" id="hero-model">模型 -</span>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <button class="btn" data-goto="modules" type="button">能力</button>
+          <button class="btn" data-goto="logs" type="button">日志</button>
+        </div>
       </div>
-    </aside>
 
-    <main class="main">
-      <header class="topbar">
-        <div class="crumb"><span id="page-title">总览</span><span class="crumb-sub" id="page-sub"></span></div>
-        <div class="top-actions">
-          <span class="chip" id="model-chip">模型 -</span>
-          <span class="chip" id="uptime-chip">已运行 -</span>
-          <button class="btn ghost" id="pause-btn" type="button">暂停</button>
-          <button class="btn ghost icon" id="theme-btn" type="button" title="切换深色/浅色">◐</button>
-          <button class="btn primary" id="refresh-btn" type="button">刷新</button>
+      <div class="grid cols-4" id="metric-grid"></div>
+
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card">
+          <div class="card-head"><h2>近 7 天 Token</h2><span class="muted" id="chart-total"></span></div>
+          <div id="token-chart"></div>
         </div>
-      </header>
-
-      <!-- 总览 -->
-      <section class="page" id="page-overview">
-        <div class="dash">
-          <div class="dash-main">
-            <div class="run-card">
-              <div class="run-left">
-                <span class="dot big" id="sb-dot"></span>
-                <div>
-                  <div class="run-title" id="sb-title">读取中…</div>
-                  <div class="run-sub" id="sb-sub"></div>
-                </div>
-              </div>
-              <div class="run-meta">
-                <div><span class="k">账号</span><span id="run-account">-</span></div>
-                <div><span class="k">PID</span><span id="run-pid">-</span></div>
-                <div><span class="k">Node</span><span id="run-node">-</span></div>
-                <div><span class="k">模型</span><span id="run-model">-</span></div>
-              </div>
-            </div>
-
-            <div class="metrics" id="metric-strip"></div>
-
-            <div class="panel">
-              <div class="panel-head">
-                <h2>健康检查</h2>
-                <span class="muted" id="health-count"></span>
-              </div>
-              <div id="health-list" class="list"></div>
-            </div>
-          </div>
-
-          <aside class="dash-side">
-            <div class="panel">
-              <h2>常用操作</h2>
-              <div class="quick">
-                <button class="btn" data-quick="modules" type="button">管理能力</button>
-                <button class="btn" data-quick="logs" type="button">查看日志</button>
-                <button class="btn" data-quick="settings" type="button">系统设置</button>
-                <a class="btn ghost" href="/" target="_blank" rel="noopener">经典控制台</a>
-              </div>
-              <p class="hint">暂停会停止处理新消息；恢复后继续。</p>
-            </div>
-            <div class="panel">
-              <div class="panel-head"><h2>最近错误</h2><span class="muted" id="err-count"></span></div>
-              <div id="err-list" class="list compact"></div>
-            </div>
-          </aside>
+        <div class="card">
+          <div class="card-head"><h2>资源与健康</h2></div>
+          <div id="ring-wrap" class="ring"></div>
+          <div id="health-list" class="list" style="margin-top:10px"></div>
         </div>
-      </section>
-
-      <!-- 能力 -->
-      <section class="page hidden" id="page-modules">
-        <div class="toolbar">
-          <div class="seg" id="kind-seg">
-            <button class="seg-btn active" data-kind="all" type="button">全部</button>
-            <button class="seg-btn" data-kind="skill" type="button">技能</button>
-            <button class="seg-btn" data-kind="plugin" type="button">插件</button>
-          </div>
-          <input class="input" id="module-search" type="search" placeholder="搜索名称 / ID / 简介" />
-          <select class="input select" id="module-status">
-            <option value="all">全部状态</option>
-            <option value="on">已启用</option>
-            <option value="off">已禁用</option>
-            <option value="error">异常</option>
-          </select>
-          <button class="btn ghost" id="reset-filter" type="button">重置</button>
-          <span class="muted count" id="module-count"></span>
-        </div>
-        <div class="table-wrap">
-          <table class="table">
-            <colgroup>
-              <col class="c-name" /><col class="c-kind" /><col class="c-ver" />
-              <col class="c-src" /><col class="c-state" /><col class="c-act" />
-            </colgroup>
-            <thead>
-              <tr><th>模块</th><th>类型</th><th>版本</th><th>来源</th><th>状态</th><th class="right">操作</th></tr>
-            </thead>
-            <tbody id="module-rows"></tbody>
-          </table>
-          <div class="empty hidden" id="module-empty">没有匹配的模块，试试重置筛选</div>
-        </div>
-      </section>
-
-      <!-- 日志 -->
-      <section class="page hidden" id="page-logs">
-        <div class="toolbar">
-          <select class="input select" id="log-level">
-            <option value="all">全部级别</option>
-            <option value="error">error</option>
-            <option value="warn">warn</option>
-            <option value="info">info</option>
-            <option value="debug">debug</option>
-          </select>
-          <input class="input" id="log-search" type="search" placeholder="搜索消息 / 模块" />
-          <label class="check"><input type="checkbox" id="log-auto" /> 自动刷新（5s）</label>
-          <button class="btn ghost" id="log-refresh" type="button">刷新</button>
-          <span class="muted count" id="log-count"></span>
-        </div>
-        <div class="log-table" id="log-list"></div>
-      </section>
-
-      <!-- 设置 -->
-      <section class="page hidden" id="page-settings">
-        <div id="settings-root" class="settings-grid"></div>
-      </section>
-
-      <!-- 关于 -->
-      <section class="page hidden" id="page-about">
-        <div class="about-grid">
-          <div class="panel">
-            <h2>产品</h2>
-            <dl>
-              <dt>名称</dt><dd>TamsuiShore QQ Agent</dd>
-              <dt>版本</dt><dd id="about-version">-</dd>
-              <dt>形态</dt><dd>Linux 无界面机器人 + 浏览器工作台</dd>
-              <dt>仓库</dt><dd><a href="https://github.com/tamsuishore-star/qq-agent-linux" target="_blank" rel="noopener">qq-agent-linux（私有）</a></dd>
-            </dl>
-          </div>
-          <div class="panel">
-            <h2>运行环境</h2>
-            <dl>
-              <dt>Node</dt><dd id="about-node">-</dd>
-              <dt>PID</dt><dd id="about-pid">-</dd>
-              <dt>运行时长</dt><dd id="about-uptime">-</dd>
-              <dt>进程内存</dt><dd id="about-mem">-</dd>
-            </dl>
-          </div>
-          <div class="panel">
-            <h2>扩展</h2>
-            <dl>
-              <dt>模块总数</dt><dd id="about-total">-</dd>
-              <dt>内置模块</dt><dd id="about-builtin">-</dd>
-              <dt>用户安装</dt><dd id="about-installed">-</dd>
-              <dt>异常</dt><dd id="about-broken">-</dd>
-            </dl>
-          </div>
-          <div class="panel">
-            <h2>外部资源</h2>
-            <ul class="links">
-              <li><a href="https://www.kondius.cn/qq-agent/" target="_blank" rel="noopener">上游项目官网（外部）</a></li>
-              <li><a href="https://github.com/K0nd1us/QQ-agent" target="_blank" rel="noopener">上游 GitHub（外部）</a></li>
-            </ul>
-            <p class="hint">外部链接依赖第三方服务，可用性与本项目无关。</p>
-          </div>
-          <div class="panel wide">
-            <h2>许可与来源</h2>
-            <p class="hint">基于 K0nd1us/QQ-agent（MIT）二次部署与维护；skills/plugins 中第三方内容版权归各自作者。完整许可见仓库 LICENSE。</p>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <div class="toast hidden" id="toast"></div>
-
-  <dialog class="dialog" id="confirm-dialog">
-    <form method="dialog">
-      <h3 id="confirm-title">确认操作</h3>
-      <p id="confirm-text"></p>
-      <pre class="confirm-detail" id="confirm-detail"></pre>
-      <div class="dialog-actions">
-        <button class="btn ghost" value="cancel" type="submit">取消</button>
-        <button class="btn danger" value="ok" type="submit">确认</button>
       </div>
-    </form>
-  </dialog>
+
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card">
+          <div class="card-head"><h2>最近会话</h2><span class="muted" id="recent-count"></span></div>
+          <div id="recent-sessions" class="list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>最近错误</h2><span class="muted" id="err-count"></span></div>
+          <div id="err-list" class="list"></div>
+        </div>
+      </div>
+    </div></section>
+
+    <section class="page hidden" id="page-sessions"><div class="page-inner">
+      <div class="page-head"><h1>会话</h1><p>每次 Agent 运行的记录</p></div>
+      <div class="toolbar">
+        <select class="input select" id="session-status"><option value="all">全部状态</option><option value="running">running</option><option value="done">done</option><option value="error">error</option></select>
+        <button class="btn ghost" id="session-refresh" type="button">刷新</button>
+        <span class="count" id="session-count"></span>
+      </div>
+      <div class="card"><div id="session-list" class="list"></div></div>
+    </div></section>
+
+    <section class="page hidden" id="page-chats"><div class="page-inner">
+      <div class="page-head"><h1>存档</h1><p>群聊与私聊的消息存档</p></div>
+      <div class="toolbar"><button class="btn ghost" id="chat-refresh" type="button">刷新</button><span class="count" id="chat-count"></span></div>
+      <div class="card"><div id="chat-list" class="list"></div></div>
+    </div></section>
+
+    <section class="page hidden" id="page-memory"><div class="page-inner">
+      <div class="page-head"><h1>记忆</h1><p>群友印象与长期记忆</p></div>
+      <div class="toolbar"><button class="btn ghost" id="memory-refresh" type="button">刷新</button><span class="count" id="memory-count"></span></div>
+      <div class="card"><div id="memory-list" class="list"></div></div>
+    </div></section>
+
+    <section class="page hidden" id="page-usage"><div class="page-inner">
+      <div class="page-head"><h1>用量</h1><p>Token、花费与工具调用</p></div>
+      <div class="grid cols-4" id="usage-cards"></div>
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card"><div class="card-head"><h2>近 7 天 Token</h2><span class="muted" id="usage-range"></span></div><div id="usage-chart"></div></div>
+        <div class="card"><div class="card-head"><h2>工具调用 Top</h2></div><div id="tool-bars" class="bars"></div></div>
+      </div>
+      <div class="card" style="margin-top:14px"><div class="card-head"><h2>按会话</h2></div><div id="chat-usage" class="bars"></div></div>
+    </div></section>
+
+    <section class="page hidden" id="page-modules"><div class="page-inner">
+      <div class="page-head"><h1>能力</h1><p>技能与插件管理</p></div>
+      <div class="toolbar">
+        <div class="seg" id="kind-seg">
+          <button class="seg-btn active" data-kind="all" type="button">全部</button>
+          <button class="seg-btn" data-kind="skill" type="button">技能</button>
+          <button class="seg-btn" data-kind="plugin" type="button">插件</button>
+        </div>
+        <input class="input" id="module-search" type="search" placeholder="搜索名称 / ID / 简介" />
+        <select class="input select" id="module-status"><option value="all">全部状态</option><option value="on">已启用</option><option value="off">已禁用</option><option value="error">异常</option></select>
+        <button class="btn ghost" id="reset-filter" type="button">重置</button>
+        <span class="count" id="module-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <colgroup><col class="c-name"/><col class="c-kind"/><col class="c-ver"/><col class="c-src"/><col class="c-state"/><col class="c-act"/></colgroup>
+          <thead><tr><th>模块</th><th>类型</th><th>版本</th><th>来源</th><th>状态</th><th style="text-align:right">操作</th></tr></thead>
+          <tbody id="module-rows"></tbody>
+        </table>
+        <div class="empty hidden" id="module-empty">没有匹配的模块</div>
+      </div>
+    </div></section>
+
+    <section class="page hidden" id="page-logs"><div class="page-inner">
+      <div class="page-head"><h1>日志</h1><p>运行日志与诊断</p></div>
+      <div class="toolbar">
+        <select class="input select" id="log-level"><option value="all">全部级别</option><option value="error">error</option><option value="warn">warn</option><option value="info">info</option><option value="debug">debug</option></select>
+        <input class="input" id="log-search" type="search" placeholder="搜索消息 / 模块" />
+        <label class="check"><input type="checkbox" id="log-auto" /> 自动刷新（5s）</label>
+        <button class="btn ghost" id="log-refresh" type="button">刷新</button>
+        <span class="count" id="log-count"></span>
+      </div>
+      <div class="log-table" id="log-list"></div>
+    </div></section>
+
+    <section class="page hidden" id="page-settings"><div class="page-inner">
+      <div class="page-head"><h1>设置</h1><p>模型、人设、服务与扩展</p></div>
+      <div id="settings-root" class="settings-grid"></div>
+    </div></section>
+
+    <section class="page hidden" id="page-about"><div class="page-inner">
+      <div class="page-head"><h1>关于</h1><p>版本、环境与来源</p></div>
+      <div class="about-grid">
+        <div class="card"><h2>产品</h2><dl><dt>名称</dt><dd>TamsuiShore QQ Agent</dd><dt>版本</dt><dd id="about-version">-</dd><dt>形态</dt><dd>Linux 无界面机器人 + 浏览器工作台</dd><dt>仓库</dt><dd><a href="https://github.com/tamsuishore-star/qq-agent-linux" target="_blank" rel="noopener">qq-agent-linux（私有）</a></dd></dl></div>
+        <div class="card"><h2>运行环境</h2><dl><dt>Node</dt><dd id="about-node">-</dd><dt>PID</dt><dd id="about-pid">-</dd><dt>运行时长</dt><dd id="about-uptime">-</dd><dt>进程内存</dt><dd id="about-mem">-</dd></dl></div>
+        <div class="card"><h2>扩展</h2><dl><dt>模块总数</dt><dd id="about-total">-</dd><dt>内置模块</dt><dd id="about-builtin">-</dd><dt>用户安装</dt><dd id="about-installed">-</dd><dt>异常</dt><dd id="about-broken">-</dd></dl></div>
+        <div class="card"><h2>外部资源</h2><ul class="links"><li><a href="https://www.kondius.cn/qq-agent/" target="_blank" rel="noopener">上游项目官网（外部）</a></li><li><a href="https://github.com/K0nd1us/QQ-agent" target="_blank" rel="noopener">上游 GitHub（外部）</a></li></ul><p class="hint">外部链接依赖第三方服务，可用性与本项目无关。</p></div>
+        <div class="card wide"><h2>许可与来源</h2><p class="hint">基于 K0nd1us/QQ-agent（MIT）二次部署与维护；skills/plugins 中第三方内容版权归各自作者。完整许可见仓库 LICENSE。</p></div>
+      </div>
+    </div></section>
+  </main>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+<dialog class="dialog" id="confirm-dialog"><form method="dialog"><h3 id="confirm-title">确认操作</h3><p id="confirm-text"></p><pre class="confirm-detail" id="confirm-detail"></pre><div class="dialog-actions"><button class="btn ghost" value="cancel" type="submit">取消</button><button class="btn danger" value="ok" type="submit">确认</button></div></form></dialog>
+<div class="sheet-mask hidden" id="sheet-mask"></div>
+<aside class="sheet hidden" id="sheet"><div class="sheet-head"><h3 id="sheet-title">详情</h3><button class="btn ghost" id="sheet-close" type="button">关闭</button></div><div class="sheet-body" id="sheet-body"></div></aside>
 </body>
 </html>
