@@ -16,6 +16,15 @@ Linux QQ Agent 的产品版本从 **V1.0.0** 起算；上游 `package.json` 的 
 
 ### 已完成（2026-10-19）
 
+- **基线**：创建并推送标签 `v1.0.0`，新建 `develop/v1.1.0` 开发分支
+- **品牌（UI 显示名）**：顶栏/页面标题/启动提示改为 **TamsuiShore QQ Agent · 淡水海边**
+  - 位置：`ui/index.html`
+  - 说明：仅显示名，仓库名、远程地址、包名未改
+- **外部服务标注**：Skill 市场、插件市场、人设广场、意见收集、官网按钮统一加“外部”徽标，并注明需联网访问 `kondius.cn`
+  - 位置：`ui/index.html`、`ui/style.css`
+- **隐藏 SnowLuma 页签**：Linux 版由 NapCat 接入，该页签不适用；视图代码保留，入口隐藏
+  - 位置：`ui/index.html`
+- **ADR**：新增 `docs/adr/0001-v1.1.0-scope-and-naming.md`，记录范围、命名、外部服务与平台边界决策
 - **运维：Node 堆上限 640MB → 960MB**（缓解 OOM，见下）
   - 位置：`/etc/systemd/system/qq-agent.service.d/limits.conf`
   - 原因：2026-10-19 13:43、16:25 两次 `JavaScript heap out of memory`，V8 栈显示 `Runtime_MapGrow`，判断存在持续累积的数据结构

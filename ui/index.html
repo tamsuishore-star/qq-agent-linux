@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QQ Agent</title>
+  <title>TamsuiShore QQ Agent</title>
   <!-- 内容安全策略：控制台只应加载本机资源。
        首屏主题预置脚本必须内联（否则会闪白），用它的 sha256 hash 精确放行 ——
        不再用 'unsafe-inline'（页面多处 innerHTML 拼接，一旦任何一处被注入，
@@ -32,7 +32,7 @@
 </head>
 <body>
   <header id="topbar">
-    <div class="brand">QQ Agent <span class="brand-sub"></span></div>
+    <div class="brand">TamsuiShore <span class="brand-sub">QQ Agent · 淡水海边</span></div>
     <div class="top-status">
       <!-- 状态胶囊带：窄窗口下横向滚动（不折行、不裁切）；右侧控件固定可见 -->
       <div class="top-chips">
@@ -47,10 +47,10 @@
       </div>
       <span class="sep"></span>
       <!-- 就绪进度指示器：4 圆点 = QQ运行 / SnowLuma运行 / OneBot连接 / 配置完成 -->
-      <span id="readiness-dots" class="readiness-dots" title="就绪进度：点击跳转到对应设置">
-        <span class="rdot" data-target="snowluma" title="QQ 内核未运行"></span>
-        <span class="rdot" data-target="snowluma" title="SnowLuma 未运行"></span>
-        <span class="rdot" data-target="snowluma" title="OneBot 未连接"></span>
+      <span id="readiness-dots" class="readiness-dots" title="就绪进度：点击跳转到设置">
+        <span class="rdot" data-target="settings" title="QQ 连接由 NapCat 管理"></span>
+        <span class="rdot" data-target="settings" title="SnowLuma 不适用于 Linux 版"></span>
+        <span class="rdot" data-target="settings" title="OneBot 连接状态见顶栏"></span>
         <span class="rdot" data-target="settings" title="配置未完成"></span>
       </span>
       <button id="theme-btn" class="icon-btn" title="切换主题（暗 ↔ 亮）" aria-label="切换主题"></button>
@@ -62,8 +62,8 @@
 
   <div id="loading-overlay" class="loading-overlay">
     <div class="loading-card">
-      <div class="loading-title">QQ Agent 正在启动</div>
-      <div class="loading-sub" id="loading-status">正在启动 SnowLuma 与 OneBot 服务，请稍候…</div>
+      <div class="loading-title">TamsuiShore QQ Agent 正在启动</div>
+      <div class="loading-sub" id="loading-status">正在连接 QQ 服务（NapCat）与 OneBot，请稍候…</div>
       <div class="loading-spinner"></div>
       <pre class="loading-logs" id="loading-logs"></pre>
     </div>
@@ -76,17 +76,18 @@
     <button class="tab" data-tab="usage">用量</button>
     <button class="tab" data-tab="skills">技能</button>
     <button class="tab" data-tab="plugins">插件</button>
-    <button class="tab" data-tab="snowluma">SnowLuma</button>
+    <!-- Linux 版由 NapCat 提供 QQ 接入，SnowLuma 页签不适用；保留视图代码但不展示入口 -->
+    <button class="tab hidden" data-tab="snowluma">SnowLuma</button>
     <button class="tab" data-tab="settings">设置</button>
     <!-- 社区功能（右侧）：金句上传 / 意见收集。金句勾选模式下「确认金句」出现在最左 -->
     <span class="nav-spacer"></span>
     <button class="nav-btn hidden" id="quote-confirm-btn">确认金句</button>
     <button class="nav-btn" id="quote-btn" title="把机器人的精彩发言收录到金句墙">金句上传</button>
-    <button class="nav-btn" id="feedback-btn" title="向作者反馈意见和建议">意见收集</button>
-    <button class="nav-btn nav-btn-market" id="skill-market-btn" title="打开 Skill 市场">Skill 市场</button>
-    <button class="nav-btn nav-btn-market" id="plugin-market-btn" title="打开插件市场">插件市场</button>
-    <button class="nav-btn nav-btn-persona" id="persona-plaza-btn" title="打开人设广场">人设广场</button>
-    <button class="nav-btn nav-btn-hot" id="open-site-btn" title="打开 QQ Agent 网站">打开网站！</button>
+    <button class="nav-btn" id="feedback-btn" title="外部服务：kondius.cn（需联网）">意见收集<span class="ext">外部</span></button>
+    <button class="nav-btn nav-btn-market" id="skill-market-btn" title="外部服务：kondius.cn（需联网）">Skill 市场<span class="ext">外部</span></button>
+    <button class="nav-btn nav-btn-market" id="plugin-market-btn" title="外部服务：kondius.cn（需联网）">插件市场<span class="ext">外部</span></button>
+    <button class="nav-btn nav-btn-persona" id="persona-plaza-btn" title="外部服务：kondius.cn（需联网）">人设广场<span class="ext">外部</span></button>
+    <button class="nav-btn nav-btn-hot" id="open-site-btn" title="外部服务：kondius.cn（需联网）">打开网站<span class="ext">外部</span></button>
   </nav>
 
   <main id="layout">
