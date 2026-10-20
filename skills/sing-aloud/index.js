@@ -219,11 +219,10 @@ export async function setup(api) {
         let sent = null, firstErr = null;
         for (const kind of kindOrder) {
           try {
-            sent = await ctx.sender.sendMedia(String(ctx.chatKey || ''),
-              [{ type: kind, data: { file: 'file://' + finalWav.replace(/\\/g, '/') } }], {
-                label: kind === 'record' ? '[翻唱]' : '[翻唱成品]',
-                dedupeKey: 'cover:' + kind + ':' + hashLite(rawPath) + ':' + Math.floor(Date.now() / 60000)
-              });
+            sent = await sendAudio(ctx, finalWav, kind, {
+              label: kind === 'record' ? '[翻唱]' : '[翻唱成品]',
+              dedupeKey: 'cover:' + kind + ':' + hashLite(rawPath) + ':' + Math.floor(Date.now() / 60000)
+            });
             log('翻唱已发送：' + kind + ' → ' + ctx.chatKey + ' → message_id=' + (sent?.message_id ?? '?'));
             break;
           } catch (e) { firstErr = firstErr || e; log('翻唱投递 ' + kind + ' 失败：' + describe(e)); }
@@ -981,16 +980,33 @@ function parseWav(buf) {
 
 // ── 投递 ──────────────────────────────────────────────────────────────────
 
+/**
+ * 发音频：优先 file://（协议端自己读盘）；失败则退回 base64://。
+ * 背景：NapCat 跑在 Docker 里时看不到宿主机 /opt/qq-agent 路径，直接 file:// 会报
+ * "Failed to open input"。base64 不依赖容器文件系统，是跨容器最稳的兜底。
+ */
+async function sendAudio(ctx, file, kind, options = {}) {
+  const chatKey = String(ctx.chatKey || '');
+  const fileRef = 'file://' + file.replace(/\\/g, '/');
+  try {
+    return await ctx.sender.sendMedia(chatKey, [{ type: kind, data: { file: fileRef } }], options);
+  } catch (error) {
+    const m = await import('node:fs');
+    const f = m.default || m;
+    const b64 = f.readFileSync(file).toString('base64');
+    log('file:// 发送失败，改用 base64 重试：' + describe(error));
+    return await ctx.sender.sendMedia(chatKey, [{ type: kind, data: { file: 'base64://' + b64 } }], options);
+  }
+}
+
 /** 先按设定方式发，失败再退到另一种；record=语音气泡。 */
 async function deliver(ctx, file, s, lyrics) {
   const chatKey = String(ctx.chatKey || '');
   const order = s.delivery === 'file' ? ['file', 'record'] : ['record', 'file'];
   let firstErr = null;
   for (const kind of order) {
-    const fileRef = 'file://' + file.replace(/\\/g, '/');
-    const segments = [{ type: kind, data: { file: fileRef } }];
     try {
-      const r = await ctx.sender.sendMedia(chatKey, segments, {
+      const r = await sendAudio(ctx, file, kind, {
         label: kind === 'record' ? '[唱歌]' : '[歌曲文件]',
         // 每分钟一个桶：同分钟内重复内容去重（防误双发），过分钟同内容可再发（防误伤）。
         dedupeKey: 'sing:' + kind + ':' + hashLite(lyrics) + ':' + Math.floor(Date.now() / 60000)
