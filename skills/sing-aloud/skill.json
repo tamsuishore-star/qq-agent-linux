@@ -23,6 +23,7 @@
     "cooldownSec": 60,
     "delivery": "record",
     "dryRun": false,
+    "cacheFallback": true,
     "accompaniment": true,
     "melodyTune": true,
     "style": "pop",
@@ -127,6 +128,11 @@
       "type": "boolean",
       "label": "演练模式",
       "description": "开着时照常合成但不发送，只报告时长。调音色时先开，确认后关掉。默认关闭。"
+    },
+    "cacheFallback": {
+      "type": "boolean",
+      "label": "服务不可用时发送缓存片段",
+      "description": "默认开：每次成功唱歌会把成品缓存到 data/fallback-song.wav；当 VoxCPM 公共 Space 排队/停用时，先发这段旧片段并如实说明，而不是直接失败。"
     },
     "accompaniment": {
       "type": "boolean",

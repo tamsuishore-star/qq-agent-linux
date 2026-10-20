@@ -244,6 +244,43 @@ export async function setup(api) {
   });
 }
 
+// ── 服务不可用时的缓存兜底 ───────────────────────────────────────────────
+
+/** 上一次成功发出的歌曲缓存到 data/fallback-song.wav，VoxCPM 挂掉时顶一下。 */
+async function saveFallback(file, lyrics) {
+  try {
+    const [fsm, pm] = await Promise.all([import('node:fs'), import('node:path')]);
+    const f = fsm.default || fsm;
+    const p = pm.default || pm;
+    if (!dataDir) return;
+    f.mkdirSync(dataDir, { recursive: true });
+    f.copyFileSync(file, p.join(dataDir, 'fallback-song.wav'));
+    f.writeFileSync(p.join(dataDir, 'fallback-song.json'), JSON.stringify({
+      savedAt: new Date().toISOString(),
+      lyrics: String(lyrics || '').slice(0, 300)
+    }, null, 1));
+  } catch { /* 缓存失败不影响正常唱歌 */ }
+}
+
+async function sendCachedFallback(ctx, s) {
+  if (s.cacheFallback === false) return null;
+  try {
+    const [fsm, pm] = await Promise.all([import('node:fs'), import('node:path')]);
+    const f = fsm.default || fsm;
+    const p = pm.default || pm;
+    const file = p.join(dataDir, 'fallback-song.wav');
+    if (!f.existsSync(file)) return null;
+    await deliver(ctx, file, s, 'fallback-cache');
+    return 'status: ok\n'
+      + '合唱服务（VoxCPM 公共 Space）当前排队/停用，已先发一段之前成功唱过的缓存片段。'
+      + '告诉用户：这是之前唱的片段，不是这次新点的歌；不要假装刚生成了新内容，也不要道歉刷屏。'
+      + '想听新歌可以过一会儿再点。';
+  } catch (error) {
+    log('缓存兜底发送失败：' + describe(error));
+    return null;
+  }
+}
+
 // ── 主流程 ────────────────────────────────────────────────────────────────
 
 async function doSing(ctx, rawLyrics, song = null) {
@@ -269,9 +306,16 @@ async function doSing(ctx, rawLyrics, song = null) {
   const plan = planLines(lyrics, s);
   if (!plan.lines.length) return fail('歌词被裁剪后为空，换几行短句再试。');
 
-  let vocal = s.engine === 'voxcpm'
-    ? await synthSongVox(plan, s)
-    : await synthSong(plan.lines, s);
+  let vocal;
+  try {
+    vocal = s.engine === 'voxcpm'
+      ? await synthSongVox(plan, s)
+      : await synthSong(plan.lines, s);
+  } catch (error) {
+    const cached = await sendCachedFallback(ctx, s);
+    if (cached) return cached;
+    throw error;
+  }
   // 阶段2b：旋律贴合 —— 把人声音高逐音符拉到歌谱（重电音唱腔，保证「唱出旋律」）。
   // 只对曲库命中（song 带 melody）的歌生效；任何一步失败 → 回退原人声，绝不把「唱歌」弄挂。
   let tunedApplied = false;
@@ -316,6 +360,7 @@ async function doSing(ctx, rawLyrics, song = null) {
       log('发送失败：' + describe(error));
       return fail('语音发送失败：' + humanize(error) + '。改用 send_message 打字回复。');
     }
+    await saveFallback(file, lyrics);
     await cleanupFile(file);
 
     state.lastSangAt = Date.now();
@@ -515,12 +560,22 @@ async function voxSubmitAndWait(s, text, refServerPath) {
       false
     ]
   };
-  const submit = await voxFetch(s.apiBase + '/gradio_api/call/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  }, s.voxTimeoutMs);
-  if (!submit.ok) throw new Error('提交合成任务失败：HTTP ' + submit.status);
+  let submit = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    submit = await voxFetch(s.apiBase + '/gradio_api/call/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }, s.voxTimeoutMs);
+    if (submit.status !== 503 && submit.status !== 502 && submit.status !== 429) break;
+    const wait = 1500 * (attempt + 1);
+    log(`VoxCPM 繁忙（HTTP ${submit.status}），${wait}ms 后重试（${attempt + 1}/3）`);
+    await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+  if (!submit || !submit.ok) {
+    throw new Error('提交合成任务失败：HTTP ' + (submit?.status ?? '?')
+      + '（VoxCPM 公共服务的 GPU 队列可能已停用/排队已满，请稍后再点，或改用其他唱歌后端）');
+  }
   const submitted = await submit.json().catch(() => null);
   const eventId = submitted && submitted.event_id;
   if (!eventId) throw new Error('提交合成任务失败：没有拿到 event_id');
@@ -1382,6 +1437,7 @@ function readSettings() {
     cooldownSec: Math.round(num(c.cooldownSec, 60, 0, 86400)),
     delivery: c.delivery === 'file' ? 'file' : 'record',
     dryRun: c.dryRun === true,
+    cacheFallback: c.cacheFallback !== false,
     accompaniment: c.accompaniment !== false,
     melodyTune: c.melodyTune !== false,
     style: ['pop', 'chill', 'ballad'].includes(c.style) ? c.style : 'pop',
